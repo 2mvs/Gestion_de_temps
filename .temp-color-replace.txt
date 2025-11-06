@@ -1,0 +1,5 @@
+# Remplacements de couleurs pour le thème corporate
+# Schedules: vert/émeraude -> cyan/slate
+# Time-entries: cyan/bleu -> cyan/slate (déjà bon, mais uniformiser)
+# Organizational-units: indigo/pourpre -> cyan/slate
+

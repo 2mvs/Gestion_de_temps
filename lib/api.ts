@@ -55,6 +55,8 @@ export const employeesAPI = {
   delete: (id: number) => api.delete(`/employees/${id}`).then((res) => res.data),
   bulkImport: (items: any[]) =>
     api.post('/employees/bulk', items).then((res) => res.data),
+  linkAccount: (id: number, data: any) =>
+    api.post(`/employees/${id}/link-account`, data).then((res) => res.data),
 };
 
 // API Work Cycles
@@ -84,6 +86,8 @@ export const absencesAPI = {
   getByEmployee: (employeeId: number) =>
     api.get(`/absences/employee/${employeeId}`).then((res) => res.data),
   create: (data: any) => api.post('/absences', data).then((res) => res.data),
+  update: (id: number, data: any) =>
+    api.put(`/absences/${id}`, data).then((res) => res.data),
   approve: (id: number, status: string, approvedBy: number) =>
     api.patch(`/absences/${id}/approve`, { status, approvedBy }).then((res) => res.data),
 };
@@ -95,26 +99,6 @@ export const overtimesAPI = {
   create: (data: any) => api.post('/overtimes', data).then((res) => res.data),
   approve: (id: number, status: string) =>
     api.patch(`/overtimes/${id}/approve`, { status }).then((res) => res.data),
-};
-
-// API Periods
-export const periodsAPI = {
-  getBySchedule: (scheduleId: number) =>
-    api.get(`/periods/schedule/${scheduleId}`).then((res) => res.data),
-  create: (data: any) => api.post('/periods', data).then((res) => res.data),
-  update: (id: number, data: any) =>
-    api.put(`/periods/${id}`, data).then((res) => res.data),
-  delete: (id: number) => api.delete(`/periods/${id}`).then((res) => res.data),
-};
-
-// API Time Ranges
-export const timeRangesAPI = {
-  getByPeriod: (periodId: number) =>
-    api.get(`/time-ranges/period/${periodId}`).then((res) => res.data),
-  create: (data: any) => api.post('/time-ranges', data).then((res) => res.data),
-  update: (id: number, data: any) =>
-    api.put(`/time-ranges/${id}`, data).then((res) => res.data),
-  delete: (id: number) => api.delete(`/time-ranges/${id}`).then((res) => res.data),
 };
 
 // API Special Hours
@@ -138,6 +122,9 @@ export const timeEntriesAPI = {
     api.post(`/time-entries/${employeeId}/clock-in`, data).then((res) => res.data),
   clockOut: (employeeId: number, data?: any) =>
     api.post(`/time-entries/${employeeId}/clock-out`, data).then((res) => res.data),
+  update: (id: number, data: any) =>
+    api.put(`/time-entries/${id}`, data).then((res) => res.data),
+  delete: (id: number) => api.delete(`/time-entries/${id}`).then((res) => res.data),
   getBalance: (employeeId: number, startDate: string, endDate: string) =>
     api.get(`/time-entries/employee/${employeeId}/balance`, { params: { startDate, endDate } }).then((res) => res.data),
   validate: (id: number, autoCorrect?: boolean) =>

@@ -227,6 +227,7 @@ export default function PayslipPage() {
             </Button>
           </div>
           <Card className="p-4">
+             <h1 className='text-xl font-semibold mb-3'>Selectionner la periode</h1>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
                 <Calendar className="w-5 h-5 text-slate-500" />
@@ -264,7 +265,7 @@ export default function PayslipPage() {
           <div className="payslip-header">
             <h1>FICHE DE PAIE</h1>
             <div className="company-info">
-              <p>Entreprise: [Nom de l'entreprise]</p>
+              <p>Entreprise: OGOOUE TECHNOLOGIE</p>
               <p>Période: {formatDate(payslipData.period.startDate)} - {formatDate(payslipData.period.endDate)}</p>
             </div>
           </div>

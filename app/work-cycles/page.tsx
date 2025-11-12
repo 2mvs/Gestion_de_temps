@@ -11,43 +11,44 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import Badge from '@/components/ui/Badge';
-import { cycleTypeOptions } from '@/lib/constants';
 
-interface WorkCycle {
-  id: number;
-  name: string;
-  abbreviation?: string;
-  description?: string;
-  cycleType: string;
-  cycleDays: number;
-  weeklyHours: number;
-  overtimeThreshold?: number;
-  employees?: any[];
-  schedules?: any[];
-}
-
-interface Schedule {
+interface WorkSchedule {
   id: number;
   label: string;
   abbreviation?: string;
-  scheduleType: string;
+  startTime: string;
+  endTime: string;
+  theoreticalDayHours?: number;
+  theoreticalMorningHours?: number;
+  theoreticalAfternoonHours?: number;
+  slots?: Array<{
+    id?: number;
+    slotType: string;
+    startTime: string;
+    endTime: string;
+  }>;
+}
+
+interface WorkCycle {
+  id: number;
+  label: string;
+  abbreviation?: string;
+  scheduleId: number;
+  schedule?: WorkSchedule & { slots?: any[] };
+  employees?: any[];
 }
 
 export default function WorkCyclesPage() {
   const router = useRouter();
   const [workCycles, setWorkCycles] = useState<WorkCycle[]>([]);
-  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [schedules, setSchedules] = useState<WorkSchedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingCycle, setEditingCycle] = useState<WorkCycle | null>(null);
   const [formData, setFormData] = useState({
-    name: '',
+    label: '',
     abbreviation: '',
-    description: '',
-    cycleType: 'WEEKLY',
-    cycleDays: 7,
-    weeklyHours: 40,
-    overtimeThreshold: 40,
+    scheduleId: '',
   });
 
   useEffect(() => {
@@ -108,10 +109,21 @@ export default function WorkCyclesPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      if (!formData.scheduleId) {
+        alert('Veuillez sélectionner un horaire.');
+        return;
+      }
+
+      const payload = {
+        label: formData.label,
+        abbreviation: formData.abbreviation || null,
+        scheduleId: parseInt(formData.scheduleId, 10),
+      };
+
       if (editingCycle) {
-        await workCyclesAPI.update(editingCycle.id, formData);
+        await workCyclesAPI.update(editingCycle.id, payload);
       } else {
-        await workCyclesAPI.create(formData);
+        await workCyclesAPI.create(payload);
       }
       
       loadData();
@@ -127,13 +139,9 @@ export default function WorkCyclesPage() {
   const handleEdit = (cycle: WorkCycle) => {
     setEditingCycle(cycle);
     setFormData({
-      name: cycle.name,
+      label: cycle.label,
       abbreviation: cycle.abbreviation || '',
-      description: cycle.description || '',
-      cycleType: cycle.cycleType,
-      cycleDays: cycle.cycleDays,
-      weeklyHours: cycle.weeklyHours,
-      overtimeThreshold: cycle.overtimeThreshold || 0,
+      scheduleId: cycle.scheduleId ? String(cycle.scheduleId) : '',
     });
     setShowModal(true);
   };
@@ -150,36 +158,30 @@ export default function WorkCyclesPage() {
 
   const resetForm = () => {
     setFormData({
-      name: '',
+      label: '',
       abbreviation: '',
-      description: '',
-      cycleType: 'WEEKLY',
-      cycleDays: 7,
-      weeklyHours: 40,
-      overtimeThreshold: 40,
+      scheduleId: '',
     });
     setEditingCycle(null);
   };
 
-  const getCycleTypeLabel = (type: string) => {
-    const types: Record<string, string> = {
-      WEEKLY: 'Hebdomadaire',
-      BIWEEKLY: 'Bihebdomadaire',
-      MONTHLY: 'Mensuel',
-      CUSTOM: 'Personnalisé',
-    };
-    return types[type] || type;
-  };
-
-  const getCycleTypeColor = (type: string) => {
-    const colors: Record<string, string> = {
-      WEEKLY: 'bg-cyan-100 text-cyan-700 border-cyan-200',
-      BIWEEKLY: 'bg-blue-100 text-blue-700 border-blue-200',
-      MONTHLY: 'bg-purple-100 text-purple-700 border-purple-200',
-      CUSTOM: 'bg-slate-100 text-slate-700 border-slate-200',
-    };
-    return colors[type] || 'bg-gray-100 text-gray-700 border-gray-200';
-  };
+  const totalEmployeesCount = workCycles.reduce((sum, c) => sum + (c.employees?.length || 0), 0);
+  const uniqueSchedulesCount = new Set(workCycles.map((cycle) => cycle.scheduleId)).size;
+  const averageEmployeesPerCycle =
+    workCycles.length > 0 ? (totalEmployeesCount / workCycles.length).toFixed(1) : '0';
+  const scheduleOptions =
+    schedules.length > 0
+      ? [
+          { value: '', label: 'Sélectionnez un horaire' },
+          ...schedules.map((schedule) => ({
+            value: String(schedule.id),
+            label: `${schedule.label} (${schedule.startTime} → ${schedule.endTime})`,
+          })),
+        ]
+      : [{ value: '', label: 'Aucun horaire disponible' }];
+  const selectedSchedule = formData.scheduleId
+    ? schedules.find((schedule) => schedule.id === parseInt(formData.scheduleId, 10))
+    : null;
 
   if (loading) {
     return (
@@ -195,7 +197,7 @@ export default function WorkCyclesPage() {
     <Layout>
       <div className="p-6 lg:p-8 animate-fade-in">
         {/* En-tête */}
-          <div className="bg-white rounded-2xl p-6 mb-8 border border-slate-200 shadow-sm">
+          <div className="bg-white p-6 mb-8 border border-slate-200 shadow-sm">
             <div className="flex justify-between items-center">
               <div>
                 <h1 className="text-3xl font-bold text-slate-900 mb-2">
@@ -232,10 +234,8 @@ export default function WorkCyclesPage() {
           <Card className="border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-slate-600 text-sm mb-1">Hebdomadaire</p>
-                <p className="text-3xl font-bold text-slate-900">
-                  {workCycles.filter(c => c.cycleType === 'WEEKLY').length}
-                </p>
+                <p className="text-slate-600 text-sm mb-1">Horaires distincts</p>
+                <p className="text-3xl font-bold text-slate-900">{uniqueSchedulesCount}</p>
               </div>
               <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
                 <Calendar className="w-6 h-6 text-blue-600" />
@@ -245,10 +245,8 @@ export default function WorkCyclesPage() {
           <Card className="border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-slate-600 text-sm mb-1">Total employés</p>
-                <p className="text-3xl font-bold text-slate-900">
-                  {workCycles.reduce((sum, c) => sum + (c.employees?.length || 0), 0)}
-                </p>
+                <p className="text-slate-600 text-sm mb-1">Employés couverts</p>
+                <p className="text-3xl font-bold text-slate-900">{totalEmployeesCount}</p>
               </div>
               <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
                 <Clock className="w-6 h-6 text-green-600" />
@@ -258,12 +256,8 @@ export default function WorkCyclesPage() {
           <Card className="border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-slate-600 text-sm mb-1">Moy. heures/sem</p>
-                <p className="text-3xl font-bold text-slate-900">
-                  {workCycles.length > 0
-                    ? (workCycles.reduce((sum, c) => sum + c.weeklyHours, 0) / workCycles.length).toFixed(1)
-                    : 0}
-                </p>
+                <p className="text-slate-600 text-sm mb-1">Moy. employés/cycle</p>
+                <p className="text-3xl font-bold text-slate-900">{averageEmployeesPerCycle}</p>
               </div>
               <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
                 <Clock className="w-6 h-6 text-purple-600" />
@@ -289,10 +283,8 @@ export default function WorkCyclesPage() {
                   <tr className="bg-slate-50 border-b-2 border-slate-200">
                     <th className="text-left p-4 text-slate-700 font-semibold">Libellé</th>
                     <th className="text-left p-4 text-slate-700 font-semibold">Abrégé</th>
-                    <th className="text-left p-4 text-slate-700 font-semibold">Type</th>
-                    <th className="text-left p-4 text-slate-700 font-semibold">Durée</th>
-                    <th className="text-left p-4 text-slate-700 font-semibold">Heures/sem</th>
-                    <th className="text-left p-4 text-slate-700 font-semibold">Seuil HS</th>
+                    <th className="text-left p-4 text-slate-700 font-semibold">Horaire</th>
+                    <th className="text-left p-4 text-slate-700 font-semibold">Plages</th>
                     <th className="text-left p-4 text-slate-700 font-semibold">Employés</th>
                     <th className="text-right p-4 text-slate-700 font-semibold">Actions</th>
                   </tr>
@@ -310,42 +302,40 @@ export default function WorkCyclesPage() {
                             <RefreshCw className="w-5 h-5 text-cyan-600" />
                           </div>
                           <div>
-                            <p className="font-semibold text-slate-900">{cycle.name}</p>
-                            {cycle.description && (
-                              <p className="text-sm text-slate-500">{cycle.description}</p>
+                            <p className="font-semibold text-slate-900">{cycle.label}</p>
+                            {cycle.schedule && (
+                              <p className="text-sm text-slate-500">
+                                {cycle.schedule.startTime} → {cycle.schedule.endTime}
+                              </p>
                             )}
                           </div>
                         </div>
                       </td>
                       <td className="p-4">
-                        {cycle.abbreviation && (
+                        {cycle.abbreviation ? (
                           <Badge className="bg-slate-100 text-slate-700 border-slate-200">
                             {cycle.abbreviation}
-                          </Badge>
-                        )}
-                      </td>
-                      <td className="p-4">
-                        <Badge className={getCycleTypeColor(cycle.cycleType)}>
-                          {getCycleTypeLabel(cycle.cycleType)}
-                        </Badge>
-                      </td>
-                      <td className="p-4">
-                        <span className="text-slate-700 font-medium">{cycle.cycleDays} jours</span>
-                      </td>
-                      <td className="p-4">
-                        <div className="flex items-center gap-2">
-                          <Clock className="w-4 h-4 text-slate-500" />
-                          <span className="text-slate-700 font-medium">{cycle.weeklyHours}h</span>
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        {cycle.overtimeThreshold ? (
-                          <Badge className="bg-amber-100 text-amber-700 border-amber-200">
-                            {cycle.overtimeThreshold}h
                           </Badge>
                         ) : (
                           <span className="text-slate-400">-</span>
                         )}
+                      </td>
+                      <td className="p-4">
+                        {cycle.schedule ? (
+                          <div className="flex flex-col text-sm text-slate-700">
+                            <span className="font-medium">{cycle.schedule.label}</span>
+                            {cycle.schedule.abbreviation && (
+                              <span className="text-xs text-slate-500">{cycle.schedule.abbreviation}</span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-slate-400">Aucun horaire</span>
+                        )}
+                      </td>
+                      <td className="p-4">
+                        <Badge className="bg-indigo-100 text-indigo-700 border-indigo-200">
+                          {cycle.schedule?.slots?.length || 0} plage(s)
+                        </Badge>
                       </td>
                       <td className="p-4">
                         <Badge className="bg-cyan-100 text-cyan-700 border-cyan-200">
@@ -404,14 +394,14 @@ export default function WorkCyclesPage() {
                     </div>
                     Informations de base
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="md:col-span-2">
                       <Input
                         label="Libellé *"
-                        value={formData.name}
-                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        value={formData.label}
+                        onChange={(e) => setFormData({ ...formData, label: e.target.value })}
                         required
-                        placeholder="Ex: Cycle standard 40h"
+                        placeholder="Ex: Cycle journée standard"
                       />
                     </div>
                     <div>
@@ -419,88 +409,49 @@ export default function WorkCyclesPage() {
                         label="Abrégé"
                         value={formData.abbreviation}
                         onChange={(e) => setFormData({ ...formData, abbreviation: e.target.value })}
-                        placeholder="Ex: STD"
+                        placeholder="Ex: STD-J"
                       />
                     </div>
                   </div>
-                  <div>
-                    <Input
-                      label="Description"
-                      value={formData.description}
-                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                      placeholder="Description optionnelle du cycle"
-                    />
-                  </div>
                 </div>
 
-                {/* Configuration du cycle */}
+                {/* Horaire associé */}
                 <div className="mb-6">
                   <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
                     <div className="w-8 h-8 bg-cyan-100 rounded-lg flex items-center justify-center">
                       <Calendar className="w-4 h-4 text-cyan-600" />
                     </div>
-                    Configuration du cycle
+                    Horaire associé
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Select
-                        label="Type de cycle *"
-                        value={formData.cycleType}
-                        onChange={(e) => setFormData({ ...formData, cycleType: e.target.value })}
-                        required
-                        options={cycleTypeOptions}
-                      />
-                    </div>
-                    <div>
-                      <Input
-                        label="Nombre de jours *"
-                        type="number"
-                        value={formData.cycleDays}
-                        onChange={(e) => setFormData({ ...formData, cycleDays: parseInt(e.target.value) || 0 })}
-                        required
-                        min="1"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Heures et limites */}
-                <div className="mb-6">
-                  <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                    <div className="w-8 h-8 bg-cyan-100 rounded-lg flex items-center justify-center">
-                      <Clock className="w-4 h-4 text-cyan-600" />
-                    </div>
-                    Heures et seuils
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Input
-                        label="Heures par semaine *"
-                        type="number"
-                        step="0.5"
-                        value={formData.weeklyHours}
-                        onChange={(e) => setFormData({ ...formData, weeklyHours: parseFloat(e.target.value) || 0 })}
-                        required
-                        min="0"
-                      />
-                      <p className="text-xs text-slate-500 mt-1">
-                        Nombre d'heures théoriques par semaine
+                  <Select
+                    label="Horaire *"
+                    value={formData.scheduleId}
+                    onChange={(e) => setFormData({ ...formData, scheduleId: e.target.value })}
+                    required
+                    options={scheduleOptions}
+                    disabled={schedules.length === 0}
+                  />
+                  {selectedSchedule && (
+                    <div className="mt-4 p-4 border border-slate-200 rounded-md bg-slate-50">
+                      <p className="text-sm font-semibold text-slate-800 mb-2">
+                        Aperçu de l'horaire sélectionné
                       </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-slate-600">
+                        <div>
+                          <span className="font-medium text-slate-800">Heure de début :</span>{' '}
+                          {selectedSchedule.startTime}
+                        </div>
+                        <div>
+                          <span className="font-medium text-slate-800">Heure de fin :</span>{' '}
+                          {selectedSchedule.endTime}
+                        </div>
+                        <div>
+                          <span className="font-medium text-slate-800">Nombre de plages :</span>{' '}
+                          {selectedSchedule.slots?.length || 0}
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <Input
-                        label="Seuil heures supplémentaires"
-                        type="number"
-                        step="0.5"
-                        value={formData.overtimeThreshold}
-                        onChange={(e) => setFormData({ ...formData, overtimeThreshold: parseFloat(e.target.value) || 0 })}
-                        min="0"
-                      />
-                      <p className="text-xs text-slate-500 mt-1">
-                        Limite pour appliquer les heures sup si nécessaire
-                      </p>
-                    </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* Actions du modal */}

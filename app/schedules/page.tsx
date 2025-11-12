@@ -1,66 +1,97 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Clock, Plus, Edit2, Trash2, Calendar, X, Settings2 } from 'lucide-react';
+import { Clock, Plus, Edit2, Trash2, Calendar, Settings2 } from 'lucide-react';
 import Layout from '@/components/Layout';
 import { isAuthenticated } from '@/lib/auth';
-import { schedulesAPI, periodsAPI, timeRangesAPI } from '@/lib/api';
+import { schedulesAPI } from '@/lib/api';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import Badge from '@/components/ui/Badge';
 import Modal from '@/components/ui/Modal';
-import FormActions from '@/components/ui/FormActions';
 import PageHeader from '@/components/ui/PageHeader';
-import { scheduleTypeOptions } from '@/lib/constants';
+import { scheduleSlotTypeOptions } from '@/lib/constants';
 
-interface Period {
+interface ScheduleApiSlot {
   id?: number;
-  name: string;
+  slotType: string;
   startTime: string;
   endTime: string;
-  periodType: string;
-  timeRanges: TimeRange[];
-}
-
-interface TimeRange {
-  id?: number;
-  name: string;
-  startTime: string;
-  endTime: string;
-  rangeType: string;
-  multiplier: number;
+  label?: string | null;
+  multiplier?: number | null;
 }
 
 interface Schedule {
   id: number;
   label: string;
   abbreviation?: string;
-  scheduleType: string;
-  startTime?: string;
-  endTime?: string;
-  breakDuration?: number;
-  totalHours?: number;
-  periods?: Period[];
+  startTime: string;
+  endTime: string;
+  theoreticalDayHours?: number;
+  theoreticalMorningHours?: number;
+  theoreticalAfternoonHours?: number;
+  slots: ScheduleApiSlot[];
 }
 
-const periodTypeOptions = [
-  { value: 'REGULAR', label: 'Normale' },
-  { value: 'BREAK', label: 'Pause' },
-  { value: 'OVERTIME', label: 'Heures sup' },
-  { value: 'SPECIAL', label: 'Spéciale' },
-];
+interface ScheduleSlotForm {
+  id?: number;
+  slotType: string;
+  startTime: string;
+  endTime: string;
+  label: string;
+  multiplier: string;
+}
 
-const timeRangeTypeOptions = [
-  { value: 'NORMAL', label: 'Normale (x1.0)' },
-  { value: 'OVERTIME', label: 'Heures sup (x1.25)' },
-  { value: 'NIGHT_SHIFT', label: 'Nuit (x1.5)' },
-  { value: 'SUNDAY', label: 'Dimanche (x2.0)' },
-  { value: 'HOLIDAY', label: 'Férié (x2.0)' },
-  { value: 'SPECIAL', label: 'Spéciale' },
-];
+interface FormData {
+  label: string;
+  abbreviation: string;
+  startTime: string;
+  endTime: string;
+  theoreticalDayHours: string;
+  theoreticalMorningHours: string;
+  theoreticalAfternoonHours: string;
+  slots: ScheduleSlotForm[];
+}
+
+const defaultSlotLabel = (type: string): string => {
+  switch (type) {
+    case 'ENTRY_GRACE':
+      return 'Franchise d\'entrée';
+    case 'BREAK':
+      return 'Pause';
+    case 'OVERTIME':
+      return 'Heures supplémentaires';
+    case 'SPECIAL':
+      return 'Heures spéciales';
+    default:
+      return type;
+  }
+};
+
+const defaultSlotMultiplier = (type: string): string => {
+  switch (type) {
+    case 'OVERTIME':
+      return '1.25';
+    case 'SPECIAL':
+      return '1.50';
+    default:
+      return '1.00';
+  }
+};
+
+const defaultFormData: FormData = {
+  label: '',
+  abbreviation: '',
+  startTime: '08:00',
+  endTime: '17:00',
+  theoreticalDayHours: '',
+  theoreticalMorningHours: '',
+  theoreticalAfternoonHours: '',
+  slots: [],
+};
 
 export default function SchedulesPage() {
   const router = useRouter();
@@ -68,15 +99,7 @@ export default function SchedulesPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
-  const [formData, setFormData] = useState({
-    label: '',
-    abbreviation: '',
-    scheduleType: 'STANDARD',
-    startTime: '08:00',
-    endTime: '17:00',
-    breakDuration: 60,
-    periods: [] as Period[],
-  });
+  const [formData, setFormData] = useState<FormData>(defaultFormData);
 
   useEffect(() => {
     if (!isAuthenticated()) {
@@ -89,7 +112,7 @@ export default function SchedulesPage() {
   const loadSchedules = async () => {
     try {
       const response = await schedulesAPI.getAll();
-      const schedulesList = Array.isArray(response.data) ? response.data : response || [];
+      const schedulesList = Array.isArray(response?.data) ? response.data : response || [];
       setSchedules(schedulesList);
     } catch (error: any) {
       console.error('Erreur lors du chargement des horaires:', error);
@@ -100,82 +123,85 @@ export default function SchedulesPage() {
     }
   };
 
+  const resetForm = () => {
+    setFormData(defaultFormData);
+    setEditingSchedule(null);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const scheduleData = {
+      const payload = {
         label: formData.label,
         abbreviation: formData.abbreviation || null,
-        scheduleType: formData.scheduleType,
         startTime: formData.startTime,
         endTime: formData.endTime,
-        breakDuration: formData.breakDuration || null,
-        periods: formData.periods.map((period) => ({
-          name: period.name,
-          startTime: period.startTime,
-          endTime: period.endTime,
-          periodType: period.periodType || 'REGULAR',
-          timeRanges: period.timeRanges.map((range) => ({
-            name: range.name,
-            startTime: range.startTime,
-            endTime: range.endTime,
-            rangeType: range.rangeType || 'NORMAL',
-            multiplier: range.multiplier || 1.0,
-          })),
+        theoreticalDayHours:
+          formData.theoreticalDayHours !== ''
+            ? parseFloat(formData.theoreticalDayHours)
+            : null,
+        theoreticalMorningHours:
+          formData.theoreticalMorningHours !== ''
+            ? parseFloat(formData.theoreticalMorningHours)
+            : null,
+        theoreticalAfternoonHours:
+          formData.theoreticalAfternoonHours !== ''
+            ? parseFloat(formData.theoreticalAfternoonHours)
+            : null,
+        slots: formData.slots.map((slot) => ({
+          slotType: slot.slotType,
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          label: slot.label?.trim() || null,
+          multiplier: slot.multiplier !== '' ? parseFloat(slot.multiplier) : 1.0,
         })),
       };
 
       if (editingSchedule) {
-        await schedulesAPI.update(editingSchedule.id, scheduleData);
+        await schedulesAPI.update(editingSchedule.id, payload);
       } else {
-        await schedulesAPI.create(scheduleData);
+        await schedulesAPI.create(payload);
       }
 
-      loadSchedules();
+      await loadSchedules();
       setShowModal(false);
       resetForm();
     } catch (error: any) {
-      console.error('Erreur:', error);
+      console.error('Erreur lors de la sauvegarde:', error);
       alert('Erreur: ' + (error?.response?.data?.message || error?.message || 'Erreur inconnue'));
     }
   };
 
-  const handleEdit = async (schedule: Schedule) => {
+  const handleEdit = (schedule: Schedule) => {
     setEditingSchedule(schedule);
-    
-    // Charger les périodes si elles n'existent pas déjà
-    let periods: Period[] = [];
-    if (schedule.periods && schedule.periods.length > 0) {
-      periods = schedule.periods;
-    } else if (schedule.id) {
-      try {
-        const periodsData = await periodsAPI.getBySchedule(schedule.id);
-        periods = Array.isArray(periodsData.data) ? periodsData.data : periodsData || [];
-        
-        // Charger les plages pour chaque période
-        for (const period of periods) {
-          if (period.id) {
-            try {
-              const rangesData = await timeRangesAPI.getByPeriod(period.id);
-              period.timeRanges = Array.isArray(rangesData.data) ? rangesData.data : rangesData || [];
-            } catch (err) {
-              period.timeRanges = [];
-            }
-          }
-        }
-      } catch (err) {
-        periods = [];
-      }
-    }
-
     setFormData({
       label: schedule.label,
       abbreviation: schedule.abbreviation || '',
-      scheduleType: schedule.scheduleType,
       startTime: schedule.startTime || '08:00',
       endTime: schedule.endTime || '17:00',
-      breakDuration: schedule.breakDuration || 60,
-      periods: periods,
+      theoreticalDayHours:
+        schedule.theoreticalDayHours !== undefined && schedule.theoreticalDayHours !== null
+          ? String(schedule.theoreticalDayHours)
+          : '',
+      theoreticalMorningHours:
+        schedule.theoreticalMorningHours !== undefined && schedule.theoreticalMorningHours !== null
+          ? String(schedule.theoreticalMorningHours)
+          : '',
+      theoreticalAfternoonHours:
+        schedule.theoreticalAfternoonHours !== undefined && schedule.theoreticalAfternoonHours !== null
+          ? String(schedule.theoreticalAfternoonHours)
+          : '',
+      slots: (schedule.slots || []).map((slot) => ({
+        id: slot.id,
+        slotType: slot.slotType,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        label: slot.label || defaultSlotLabel(slot.slotType),
+        multiplier:
+          slot.multiplier !== undefined && slot.multiplier !== null
+            ? String(slot.multiplier)
+            : defaultSlotMultiplier(slot.slotType),
+      })),
     });
     setShowModal(true);
   };
@@ -184,83 +210,60 @@ export default function SchedulesPage() {
     if (!confirm('Êtes-vous sûr de vouloir supprimer cet horaire ?')) return;
     try {
       await schedulesAPI.delete(id);
-      loadSchedules();
-    } catch (error) {
+      await loadSchedules();
+    } catch (error: any) {
       console.error('Erreur:', error);
+      alert('Erreur: ' + (error?.response?.data?.message || error?.message || 'Suppression impossible'));
     }
   };
 
-  const resetForm = () => {
-    setFormData({
-      label: '',
-      abbreviation: '',
-      scheduleType: 'STANDARD',
-      startTime: '08:00',
-      endTime: '17:00',
-      breakDuration: 60,
-      periods: [],
-    });
-    setEditingSchedule(null);
-  };
-
-  const addPeriod = () => {
-    setFormData({
-      ...formData,
-      periods: [
-        ...formData.periods,
+  const addSlot = () => {
+    setFormData((prev) => ({
+      ...prev,
+      slots: [
+        ...prev.slots,
         {
-          name: '',
-          startTime: '08:00',
-          endTime: '12:00',
-          periodType: 'REGULAR',
-          timeRanges: [],
+          slotType: 'BREAK',
+          startTime: prev.endTime || '12:00',
+          endTime: prev.endTime || '13:00',
+          label: defaultSlotLabel('BREAK'),
+          multiplier: defaultSlotMultiplier('BREAK'),
         },
       ],
+    }));
+  };
+
+  const updateSlot = (index: number, slot: Partial<ScheduleSlotForm>) => {
+    setFormData((prev) => {
+      const newSlots = [...prev.slots];
+      newSlots[index] = { ...newSlots[index], ...slot };
+      return { ...prev, slots: newSlots };
     });
   };
 
-  const updatePeriod = (index: number, period: Partial<Period>) => {
-    const newPeriods = [...formData.periods];
-    newPeriods[index] = { ...newPeriods[index], ...period };
-    setFormData({ ...formData, periods: newPeriods });
+  const removeSlot = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      slots: prev.slots.filter((_, i) => i !== index),
+    }));
   };
 
-  const removePeriod = (index: number) => {
-    const newPeriods = formData.periods.filter((_, i) => i !== index);
-    setFormData({ ...formData, periods: newPeriods });
-  };
+  const totalSlots = useMemo(
+    () => schedules.reduce((sum, schedule) => sum + (schedule.slots?.length || 0), 0),
+    [schedules]
+  );
 
-  const addTimeRange = (periodIndex: number) => {
-    const newPeriods = [...formData.periods];
-    newPeriods[periodIndex].timeRanges = [
-      ...(newPeriods[periodIndex].timeRanges || []),
-      {
-        name: '',
-        startTime: '08:00',
-        endTime: '12:00',
-        rangeType: 'NORMAL',
-        multiplier: 1.0,
-      },
-    ];
-    setFormData({ ...formData, periods: newPeriods });
-  };
+  const averageSlots = schedules.length > 0 ? (totalSlots / schedules.length).toFixed(1) : '0';
 
-  const updateTimeRange = (periodIndex: number, rangeIndex: number, range: Partial<TimeRange>) => {
-    const newPeriods = [...formData.periods];
-    newPeriods[periodIndex].timeRanges[rangeIndex] = {
-      ...newPeriods[periodIndex].timeRanges[rangeIndex],
-      ...range,
-    };
-    setFormData({ ...formData, periods: newPeriods });
-  };
-
-  const removeTimeRange = (periodIndex: number, rangeIndex: number) => {
-    const newPeriods = [...formData.periods];
-    newPeriods[periodIndex].timeRanges = newPeriods[periodIndex].timeRanges.filter(
-      (_, i) => i !== rangeIndex
-    );
-    setFormData({ ...formData, periods: newPeriods });
-  };
+  const averageDayHours =
+    schedules.length > 0
+      ? (
+          schedules.reduce(
+            (sum, schedule) => sum + (schedule.theoreticalDayHours || 0),
+            0
+          ) / schedules.length
+        ).toFixed(1)
+      : '0';
 
   if (loading) {
     return (
@@ -277,7 +280,7 @@ export default function SchedulesPage() {
       <div className="p-6 lg:p-8 animate-fade-in">
         <PageHeader
           title="Horaires de travail"
-          description="Gérez les templates d'horaires avec périodes et plages horaires"
+          description="Gérez les horaires et leurs plages (pauses, franchises, heures sup, spéciales)"
           icon={Clock}
           actionLabel="Nouvel horaire"
           actionIcon={Plus}
@@ -303,23 +306,19 @@ export default function SchedulesPage() {
           <Card className="border border-slate-200 shadow-soft">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-slate-600 text-sm mb-1">Avec périodes</p>
-                <p className="text-3xl font-bold text-slate-900">
-                  {schedules.filter(s => s.periods && s.periods.length > 0).length}
-                </p>
+                <p className="text-slate-600 text-sm mb-1">Plages configurées</p>
+                <p className="text-3xl font-bold text-slate-900">{totalSlots}</p>
               </div>
-              <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                <Settings2 className="w-6 h-6 text-green-600" />
+              <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
+                <Settings2 className="w-6 h-6 text-emerald-600" />
               </div>
             </div>
           </Card>
           <Card className="border border-slate-200 shadow-soft">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-slate-600 text-sm mb-1">Horaires standard</p>
-                <p className="text-3xl font-bold text-slate-900">
-                  {schedules.filter(s => s.scheduleType === 'STANDARD').length}
-                </p>
+                <p className="text-slate-600 text-sm mb-1">Heures théoriques (jour)</p>
+                <p className="text-3xl font-bold text-slate-900">{averageDayHours}h</p>
               </div>
               <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
                 <Calendar className="w-6 h-6 text-blue-600" />
@@ -345,7 +344,8 @@ export default function SchedulesPage() {
                   <tr className="bg-slate-50 border-b-2 border-slate-200">
                     <th className="text-left p-4 text-slate-700 font-semibold">Libellé</th>
                     <th className="text-left p-4 text-slate-700 font-semibold">Horaire</th>
-                    <th className="text-left p-4 text-slate-700 font-semibold">Périodes</th>
+                    <th className="text-left p-4 text-slate-700 font-semibold">Théorique</th>
+                    <th className="text-left p-4 text-slate-700 font-semibold">Plages</th>
                     <th className="text-right p-4 text-slate-700 font-semibold">Actions</th>
                   </tr>
                 </thead>
@@ -353,39 +353,58 @@ export default function SchedulesPage() {
                   {schedules.map((schedule) => (
                     <tr key={schedule.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                       <td className="p-4">
-                        <div className="flex items-center gap-3">
-                          <div>
-                            <p className="font-semibold text-sm text-slate-900">{schedule.label}</p>
-                          </div>
-                        </div>
-                      </td>
-                      {/* <td className="p-4">
-                        <Badge className="bg-cyan-100 text-cyan-700 border-cyan-200">
-                          {scheduleTypeOptions.find(opt => opt.value === schedule.scheduleType)?.label || schedule.scheduleType}
-                        </Badge>
-                      </td> */}
-                      <td className="p-4">
-                        {schedule.startTime && schedule.endTime ? (
-                          <div className="text-sm">
-                            <span className="font-semibold text-slate-900">{schedule.startTime}</span>
-                            <span className="text-slate-500 mx-2">→</span>
-                            <span className="font-semibold text-slate-900">{schedule.endTime}</span>
-                          </div>
-                        ) : (
-                          <span className="text-slate-400 text-sm">Non défini</span>
-                        )}
-                      </td>
-                      <td className="p-4">
-                        <div className="flex items-center gap-2">
-                          <Badge className="bg-purple-100 text-purple-700 border-purple-200">
-                            {schedule.periods?.length || 0} période{(schedule.periods?.length || 0) > 1 ? 's' : ''}
-                          </Badge>
-                          {(schedule.periods || []).reduce((sum, p) => sum + (p.timeRanges?.length || 0), 0) > 0 && (
-                            <Badge className="bg-indigo-100 text-indigo-700 border-indigo-200">
-                              {(schedule.periods || []).reduce((sum, p) => sum + (p.timeRanges?.length || 0), 0)} plage{(schedule.periods || []).reduce((sum, p) => sum + (p.timeRanges?.length || 0), 0) > 1 ? 's' : ''}
-                            </Badge>
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-slate-900">{schedule.label}</span>
+                          {schedule.abbreviation && (
+                            <span className="text-xs text-slate-500 uppercase tracking-wide">
+                              {schedule.abbreviation}
+                            </span>
                           )}
                         </div>
+                      </td>
+                      <td className="p-4 text-sm text-slate-700">
+                        {schedule.startTime} → {schedule.endTime}
+                      </td>
+                      <td className="p-4">
+                        <div className="flex flex-wrap gap-2 text-xs">
+                          <Badge className="bg-cyan-100 text-cyan-700 border-cyan-200">
+                            Journée: {schedule.theoreticalDayHours ?? '—'}h
+                          </Badge>
+                          <Badge className="bg-purple-100 text-purple-700 border-purple-200">
+                            Matin: {schedule.theoreticalMorningHours ?? '—'}h
+                          </Badge>
+                          <Badge className="bg-amber-100 text-amber-700 border-amber-200">
+                            Après-midi: {schedule.theoreticalAfternoonHours ?? '—'}h
+                          </Badge>
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        {schedule.slots && schedule.slots.length > 0 ? (
+                          <div className="flex flex-wrap gap-2">
+                            {schedule.slots.map((slot) => (
+                              <Badge
+                                key={slot.id ?? `${slot.slotType}-${slot.startTime}-${slot.endTime}`}
+                                className="bg-indigo-100 text-indigo-700 border-indigo-200 flex items-center gap-1"
+                              >
+                                <span className="font-semibold">
+                                  {slot.label || defaultSlotLabel(slot.slotType)}
+                                </span>
+                                <span>
+                                  {slot.startTime} → {slot.endTime}
+                                </span>
+                                <span>
+                                  ·{' '}
+                                  {slot.multiplier !== undefined && slot.multiplier !== null
+                                    ? Number(slot.multiplier).toFixed(2)
+                                    : '1.00'}
+                                  x
+                                </span>
+                              </Badge>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">Aucune plage définie</span>
+                        )}
                       </td>
                       <td className="p-4">
                         <div className="flex gap-2 justify-end">
@@ -413,282 +432,192 @@ export default function SchedulesPage() {
 
         {/* Modal de création/édition */}
         <Modal
+          size="xl"
           isOpen={showModal}
           onClose={() => {
             setShowModal(false);
             resetForm();
           }}
           title={editingSchedule ? 'Modifier l\'horaire' : 'Nouvel horaire'}
-          description={editingSchedule ? 'Modifiez les informations de l\'horaire' : 'Créez un nouvel horaire avec périodes et plages horaires'}
-          size="xl"
+          description="Définissez les heures théoriques et les différentes plages (pauses, heures sup, etc.)."
         >
           <form onSubmit={handleSubmit} className="p-6 space-y-6">
-            {/* Informations de base */}
-            <div>
-              <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                <Clock className="w-5 h-5 text-cyan-600" />
-                Informations de base
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="md:col-span-2">
-                  <Input
-                    label="Libellé *"
-                    value={formData.label}
-                    onChange={(e) => setFormData({ ...formData, label: e.target.value })}
-                    required
-                    placeholder="Ex: Horaire Bureau Standard"
-                  />
-                </div>
-                <div>
-                  <Input
-                    label="Abrégé"
-                    value={formData.abbreviation}
-                    onChange={(e) => setFormData({ ...formData, abbreviation: e.target.value })}
-                    placeholder="Ex: STD"
-                  />
-                </div>
-              </div>
-              <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Select
-                  label="Type d'horaire *"
-                  value={formData.scheduleType}
-                  onChange={(e) => setFormData({ ...formData, scheduleType: e.target.value })}
-                  required
-                  options={scheduleTypeOptions}
-                />
-                <Input
-                  label="Heure de début *"
-                  type="time"
-                  value={formData.startTime}
-                  onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
-                  required
-                />
-                <Input
-                  label="Heure de fin *"
-                  type="time"
-                  value={formData.endTime}
-                  onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
-                  required
-                />
-              </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input
+                label="Libellé *"
+                value={formData.label}
+                onChange={(e) => setFormData({ ...formData, label: e.target.value })}
+                required
+              />
+              <Input
+                label="Abrégé"
+                value={formData.abbreviation}
+                onChange={(e) => setFormData({ ...formData, abbreviation: e.target.value })}
+              />
             </div>
 
-            {/* Périodes */}
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
-                  <Settings2 className="w-5 h-5 text-purple-600" />
-                  Périodes ({formData.periods.length})
-                </h3>
-                <Button
-                  type="button"
-                  onClick={addPeriod}
-                  variant="outline"
-                  size="sm"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Ajouter une période
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input
+                label="Heure de début *"
+                type="time"
+                value={formData.startTime}
+                onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+                required
+              />
+              <Input
+                label="Heure de fin *"
+                type="time"
+                value={formData.endTime}
+                onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Input
+                label="Théorique journée (h)"
+                type="number"
+                step="0.25"
+                value={formData.theoreticalDayHours}
+                onChange={(e) => setFormData({ ...formData, theoreticalDayHours: e.target.value })}
+                placeholder="Ex: 8"
+              />
+              <Input
+                label="Théorique matin (h)"
+                type="number"
+                step="0.25"
+                value={formData.theoreticalMorningHours}
+                onChange={(e) =>
+                  setFormData({ ...formData, theoreticalMorningHours: e.target.value })
+                }
+                placeholder="Ex: 4"
+              />
+              <Input
+                label="Théorique après-midi (h)"
+                type="number"
+                step="0.25"
+                value={formData.theoreticalAfternoonHours}
+                onChange={(e) =>
+                  setFormData({ ...formData, theoreticalAfternoonHours: e.target.value })
+                }
+                placeholder="Ex: 4"
+              />
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-semibold text-slate-900 uppercase tracking-wide">
+                  Plages horaires
+                </h4>
+                <Button type="button" variant="outline" onClick={addSlot} className="text-xs">
+                  <Plus className="w-4 h-4 mr-1" />
+                  Ajouter une plage
                 </Button>
               </div>
 
-              {formData.periods.length === 0 ? (
-                <Card className="border-2 border-dashed border-slate-300 p-8 text-center">
-                  <p className="text-slate-500 mb-4">Aucune période définie</p>
-                  <p className="text-sm text-slate-400 mb-4">
-                    Les périodes permettent de diviser l'horaire en sections (Matin, Après-midi, Nuit, etc.)
-                  </p>
-                  <Button
-                    type="button"
-                    onClick={addPeriod}
-                    variant="outline"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Créer la première période
-                  </Button>
-                </Card>
+              {formData.slots.length === 0 ? (
+                <div className="border border-dashed border-slate-200 rounded-md p-4 text-sm text-slate-500 text-center">
+                  Aucune plage définie. Ajoutez des franchises, pauses ou heures supplémentaires.
+                </div>
               ) : (
                 <div className="space-y-4">
-                  {formData.periods.map((period, periodIndex) => (
-                    <Card key={periodIndex} className="border border-purple-200 bg-purple-50/30">
-                      <div className="p-4 space-y-4">
-                        <div className="flex items-center justify-between">
-                          <h4 className="font-semibold text-purple-900">Période {periodIndex + 1}</h4>
-                          <button
-                            type="button"
-                            onClick={() => removePeriod(periodIndex)}
-                            className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                          <Input
-                            label="Nom *"
-                            value={period.name}
-                            onChange={(e) => updatePeriod(periodIndex, { name: e.target.value })}
-                            required
-                            placeholder="Ex: Matin"
-                          />
-                          <Input
-                            label="Début *"
-                            type="time"
-                            value={period.startTime}
-                            onChange={(e) => updatePeriod(periodIndex, { startTime: e.target.value })}
-                            required
-                          />
-                          <Input
-                            label="Fin *"
-                            type="time"
-                            value={period.endTime}
-                            onChange={(e) => updatePeriod(periodIndex, { endTime: e.target.value })}
-                            required
-                          />
-                          <Select
-                            label="Type"
-                            value={period.periodType}
-                            onChange={(e) => updatePeriod(periodIndex, { periodType: e.target.value })}
-                            options={periodTypeOptions}
-                          />
-                        </div>
-
-                        {/* Plages horaires */}
-                        <div className="mt-4 pt-4 border-t border-purple-200">
-                          <div className="flex items-center justify-between mb-3">
-                            <h5 className="text-sm font-semibold text-purple-800">
-                              Plages horaires ({period.timeRanges?.length || 0})
-                            </h5>
-                            <Button
-                              type="button"
-                              onClick={() => addTimeRange(periodIndex)}
-                              variant="outline"
-                              size="sm"
-                            >
-                              <Plus className="w-3 h-3 mr-1" />
-                              Ajouter
-                            </Button>
-                          </div>
-
-                          {(!period.timeRanges || period.timeRanges.length === 0) ? (
-                            <div className="bg-white/50 border border-dashed border-purple-300 rounded-lg p-4 text-center">
-                              <p className="text-sm text-purple-600 mb-2">Aucune plage définie</p>
-                              <p className="text-xs text-purple-500 mb-3">
-                                Les plages définissent les multiplicateurs (x1.0, x1.25, x1.5, etc.)
-                              </p>
-                              <Button
-                                type="button"
-                                onClick={() => addTimeRange(periodIndex)}
-                                variant="outline"
-                                size="sm"
-                              >
-                                <Plus className="w-3 h-3 mr-1" />
-                                Ajouter une plage
-                              </Button>
-                            </div>
-                          ) : (
-                            <div className="space-y-3">
-                              {period.timeRanges.map((range, rangeIndex) => (
-                                <div key={rangeIndex} className="bg-white rounded-lg p-3 border border-purple-200">
-                                  <div className="flex items-start justify-between mb-2">
-                                    <span className="text-xs font-medium text-purple-700">
-                                      Plage {rangeIndex + 1}
-                                    </span>
-                                    <button
-                                      type="button"
-                                      onClick={() => removeTimeRange(periodIndex, rangeIndex)}
-                                      className="p-1 text-red-500 hover:bg-red-50 rounded"
-                                    >
-                                      <X className="w-3 h-3" />
-                                    </button>
-                                  </div>
-                                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                                    <Input
-                                      label="Nom"
-                                      value={range.name}
-                                      onChange={(e) =>
-                                        updateTimeRange(periodIndex, rangeIndex, { name: e.target.value })
-                                      }
-                                      placeholder="Ex: Heures normales"
-                                      size="sm"
-                                    />
-                                    <Input
-                                      label="Début"
-                                      type="time"
-                                      value={range.startTime}
-                                      onChange={(e) =>
-                                        updateTimeRange(periodIndex, rangeIndex, { startTime: e.target.value })
-                                      }
-                                      size="sm"
-                                    />
-                                    <Input
-                                      label="Fin"
-                                      type="time"
-                                      value={range.endTime}
-                                      onChange={(e) =>
-                                        updateTimeRange(periodIndex, rangeIndex, { endTime: e.target.value })
-                                      }
-                                      size="sm"
-                                    />
-                                    <div className="space-y-1">
-                                      <Select
-                                        label="Type"
-                                        value={range.rangeType}
-                                        onChange={(e) =>
-                                          updateTimeRange(periodIndex, rangeIndex, {
-                                            rangeType: e.target.value,
-                                            multiplier:
-                                              e.target.value === 'NORMAL'
-                                                ? 1.0
-                                                : e.target.value === 'OVERTIME'
-                                                ? 1.25
-                                                : e.target.value === 'NIGHT_SHIFT'
-                                                ? 1.5
-                                                : e.target.value === 'SUNDAY' || e.target.value === 'HOLIDAY'
-                                                ? 2.0
-                                                : range.multiplier,
-                                          })
-                                        }
-                                        options={timeRangeTypeOptions}
-                                        size="sm"
-                                      />
-                                      <Input
-                                        label="Multiplicateur"
-                                        type="number"
-                                        step="0.25"
-                                        min="0"
-                                        value={range.multiplier}
-                                        onChange={(e) =>
-                                          updateTimeRange(periodIndex, rangeIndex, {
-                                            multiplier: parseFloat(e.target.value) || 1.0,
-                                          })
-                                        }
-                                        size="sm"
-                                      />
-                                    </div>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
+                  {formData.slots.map((slot, index) => (
+                    <div
+                      key={index}
+                      className="grid grid-cols-1 md:grid-cols-12 gap-3 border border-slate-200 rounded-md p-4 bg-slate-50 shadow-sm"
+                    >
+                      <div className="md:col-span-3">
+                        <Select
+                          label="Type de plage"
+                          value={slot.slotType}
+                          onChange={(e) => {
+                            const newType = e.target.value;
+                            updateSlot(index, {
+                              slotType: newType,
+                              label:
+                                slot.label && slot.label !== defaultSlotLabel(slot.slotType)
+                                  ? slot.label
+                                  : defaultSlotLabel(newType),
+                              multiplier:
+                                slot.multiplier && slot.multiplier !== defaultSlotMultiplier(slot.slotType)
+                                  ? slot.multiplier
+                                  : defaultSlotMultiplier(newType),
+                            });
+                          }}
+                          options={scheduleSlotTypeOptions}
+                        />
                       </div>
-                    </Card>
+                      <div className="md:col-span-3">
+                        <Input
+                          label="Début"
+                          type="time"
+                          value={slot.startTime}
+                          onChange={(e) => updateSlot(index, { startTime: e.target.value })}
+                        />
+                      </div>
+                      <div className="md:col-span-3">
+                        <Input
+                          label="Fin"
+                          type="time"
+                          value={slot.endTime}
+                          onChange={(e) => updateSlot(index, { endTime: e.target.value })}
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <Input
+                          label="Libellé"
+                          value={slot.label}
+                          onChange={(e) => updateSlot(index, { label: e.target.value })}
+                          placeholder={defaultSlotLabel(slot.slotType)}
+                        />
+                      </div>
+                      <div className="md:col-span-1">
+                        <Input
+                          label="x"
+                          type="number"
+                          step="0.05"
+                          min="0"
+                          value={slot.multiplier}
+                          onChange={(e) => updateSlot(index, { multiplier: e.target.value })}
+                        />
+                      </div>
+                      <div className="flex items-end justify-end md:col-span-1 md:justify-end md:items-end col-span-full">
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          onClick={() => removeSlot(index)}
+                          className="w-full md:w-auto"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Retirer
+                        </Button>
+                      </div>
+                    </div>
                   ))}
                 </div>
               )}
             </div>
 
-            <FormActions
-              onCancel={() => {
-                setShowModal(false);
-                resetForm();
-              }}
-              submitLabel={editingSchedule ? 'Modifier' : 'Créer'}
-              isEditing={!!editingSchedule}
-            />
+            <div className="flex gap-3 pt-4 border-t border-slate-200">
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1"
+                onClick={() => {
+                  setShowModal(false);
+                  resetForm();
+                }}
+              >
+                Annuler
+              </Button>
+              <Button type="submit" className="flex-1 bg-cyan-600 hover:bg-cyan-700">
+                {editingSchedule ? 'Enregistrer' : 'Créer'}
+              </Button>
+            </div>
           </form>
         </Modal>
       </div>
     </Layout>
   );
 }
+

@@ -33,7 +33,7 @@ export default function FormActions({
         variant="outline"
         onClick={onCancel}
         disabled={isLoading}
-        className="hover:bg-slate-100 border-2"
+        className="hover:bg-slate-100 text-gray-700 border"
       >
         <X className="w-4 h-4 mr-2" />
         {cancelLabel}

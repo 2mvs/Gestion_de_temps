@@ -38,3 +38,27 @@ export const isAuthenticated = (): boolean => {
   return getAuthToken() !== null;
 };
 
+// Role helpers
+export const isAdmin = (user?: any): boolean => {
+  const role = user?.role || getUser()?.role;
+  if (!role) return false;
+  return ['ADMIN', 'ADMINISTRATEUR', 'ADMINISTRATOR'].includes(role.toString().toUpperCase());
+};
+
+export const isManager = (user?: any): boolean => {
+  const role = user?.role || getUser()?.role;
+  if (!role) return false;
+  return ['MANAGER', 'MANGER'].includes(role.toString().toUpperCase());
+};
+
+export const isBasicUser = (user?: any): boolean => {
+  const role = user?.role || getUser()?.role;
+  if (!role) return false;
+  return ['USER', 'UTILISATEUR'].includes(role.toString().toUpperCase());
+};
+
+export const hasAnyRole = (roles: string[], user?: any): boolean => {
+  const role = (user?.role || getUser()?.role || '').toString().toUpperCase();
+  return roles.map(r => r.toString().toUpperCase()).includes(role);
+};
+

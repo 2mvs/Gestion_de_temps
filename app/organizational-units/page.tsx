@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Edit, Trash2, X, Building2, ChevronRight, ChevronDown, Users } from 'lucide-react';
 import { toast } from 'react-toastify';
 import Layout from '@/components/Layout';
-import { isAuthenticated } from '@/lib/auth';
-import { organizationalUnitsAPI } from '@/lib/api';
+import { getUser, isAdmin, isAuthenticated } from '@/lib/auth';
+import { employeesAPI, organizationalUnitsAPI } from '@/lib/api';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -23,6 +23,11 @@ interface OrganizationalUnit {
   parent?: OrganizationalUnit | null;
   children?: OrganizationalUnit[];
   employees?: any[];
+  manager?: {
+    id: number;
+    email: string;
+    role: string;
+  } | null;
   _count?: {
     employees: number;
     children: number;
@@ -41,18 +46,25 @@ export default function OrganizationalUnitsPage() {
     name: '',
     description: '',
     parentId: null as number | null,
+    managerId: '',
   });
   const [allUnits, setAllUnits] = useState<OrganizationalUnit[]>([]);
+  const [managerOptions, setManagerOptions] = useState<{ value: string; label: string }[]>([]);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  const isAdminUser = useMemo(() => isAdmin(currentUser), [currentUser]);
 
   useEffect(() => {
     if (!isAuthenticated()) {
       router.push('/login');
       return;
     }
-    loadData();
+    const user = getUser();
+    setCurrentUser(user);
+    loadData(isAdmin(user));
   }, [router]);
 
-  const loadData = async () => {
+  const loadData = async (includeManagers: boolean = false) => {
     try {
       const [treeResponse, allUnitsResponse] = await Promise.all([
         organizationalUnitsAPI.getTree(),
@@ -63,6 +75,26 @@ export default function OrganizationalUnitsPage() {
       // Développer tous les nœuds par défaut
       const allIds = extractAllIds(treeResponse.data || []);
       setExpandedNodes(new Set(allIds));
+
+      if (includeManagers) {
+        try {
+          const employeesResponse = await employeesAPI.getAll();
+          const managers =
+            (employeesResponse.data || [])
+              .filter((emp: any) => String(emp.user?.role || '').toUpperCase() === 'MANAGER')
+              .map((emp: any) => ({
+                value: emp.user?.id?.toString() || '',
+                label: `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || emp.user?.email,
+              }))
+              .filter((option: { value: string }) => option.value);
+          setManagerOptions(managers);
+        } catch (managerError) {
+          console.error('Erreur chargement managers:', managerError);
+          setManagerOptions([]);
+        }
+      } else {
+        setManagerOptions([]);
+      }
     } catch (error) {
       console.error('Erreur:', error);
     } finally {
@@ -93,18 +125,24 @@ export default function OrganizationalUnitsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isAdminUser) {
+      toast.error('Accès refusé');
+      return;
+    }
     try {
       // Convertir parentId correctement
       const parentIdValue = formData.parentId === null || formData.parentId === 0 
         ? null 
         : Number(formData.parentId);
 
-      const payload = {
+      const payload: any = {
         code: formData.code.trim(),
         name: formData.name.trim(),
         description: formData.description?.trim() || null,
         parentId: parentIdValue,
       };
+
+      payload.managerId = formData.managerId ? Number(formData.managerId) : null;
 
       if (editingUnit) {
         await organizationalUnitsAPI.update(editingUnit.id, payload);
@@ -121,8 +159,9 @@ export default function OrganizationalUnitsPage() {
         name: '',
         description: '',
         parentId: null,
+        managerId: '',
       });
-      loadData();
+      loadData(isAdminUser);
     } catch (error: any) {
       console.error('Erreur lors de l\'opération:', error);
       toast.error(error.response?.data?.message || error.message || 'Erreur lors de l\'opération');
@@ -136,11 +175,16 @@ export default function OrganizationalUnitsPage() {
       name: unit.name,
       description: unit.description || '',
       parentId: unit.parentId,
+      managerId: unit.manager?.id ? unit.manager.id.toString() : '',
     });
     setShowModal(true);
   };
 
   const handleDelete = async (id: number) => {
+    if (!isAdminUser) {
+      toast.error('Accès refusé');
+      return;
+    }
     if (!window.confirm('Êtes-vous sûr de vouloir supprimer cette unité organisationnelle ?')) {
       return;
     }
@@ -148,19 +192,24 @@ export default function OrganizationalUnitsPage() {
     try {
       await organizationalUnitsAPI.delete(id);
       toast.success('Unité organisationnelle supprimée avec succès');
-      loadData();
+      loadData(isAdminUser);
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Erreur lors de la suppression');
     }
   };
 
   const handleAddChild = (parentId: number) => {
+    if (!isAdminUser) {
+      toast.error('Accès refusé');
+      return;
+    }
     setEditingUnit(null);
     setFormData({
       code: '',
       name: '',
       description: '',
       parentId: parentId,
+      managerId: '',
     });
     setShowModal(true);
   };
@@ -212,34 +261,41 @@ export default function OrganizationalUnitsPage() {
                   </>
                 )}
               </div>
+              {unit.manager && (
+                <p className="text-xs text-slate-500 mt-1">
+                  Manager&nbsp;: <span className="font-medium text-slate-700">{unit.manager.email}</span>
+                </p>
+              )}
               {unit.description && (
                 <p className="text-sm text-slate-500 truncate mt-1">{unit.description}</p>
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2 ml-4 shrink-0">
-            <button
-              onClick={() => handleAddChild(unit.id)}
-              className="p-2.5 text-gray-600 bg-gray-200 hover:bg-cyan-50  transition-all hover:scale-110 active:scale-95"
-              title="Ajouter une sous-unité"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => handleEdit(unit)}
-              className="p-2.5 text-cyan-600 bg-cyan-200 hover:bg-cyan-50  transition-all hover:scale-110 active:scale-95"
-              title="Modifier"
-            >
-              <Edit className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => handleDelete(unit.id)}
-              className="p-2.5 text-red-600 bg-red-200 hover:bg-red-50  transition-all hover:scale-110 active:scale-95"
-              title="Supprimer"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
+          {isAdminUser && (
+            <div className="flex items-center gap-2 ml-4 shrink-0">
+              <button
+                onClick={() => handleAddChild(unit.id)}
+                className="p-2.5 text-gray-600 bg-gray-200 hover:bg-cyan-50  transition-all hover:scale-110 active:scale-95"
+                title="Ajouter une sous-unité"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => handleEdit(unit)}
+                className="p-2.5 text-cyan-600 bg-cyan-200 hover:bg-cyan-50  transition-all hover:scale-110 active:scale-95"
+                title="Modifier"
+              >
+                <Edit className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => handleDelete(unit.id)}
+                className="p-2.5 text-red-600 bg-red-200 hover:bg-red-50  transition-all hover:scale-110 active:scale-95"
+                title="Supprimer"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
         {hasChildren && isExpanded && (
           <div>
@@ -275,23 +331,26 @@ export default function OrganizationalUnitsPage() {
                 Gérez la structure organisationnelle de votre entreprise
               </p>
             </div>
-            <Button 
-              onClick={() => {
-                setEditingUnit(null);
-                setFormData({
-                  code: '',
-                  name: '',
-                  description: '',
-                  parentId: null,
-                });
-                setShowModal(true);
-              }} 
-              size="sm"
-              className="bg-cyan-600 hover:bg-cyan-700 text-white shadow-md hover:shadow-lg transition-all"
-            >
-              <Plus className="w-5 h-5 mr-2" />
-              Ajouter une unité
-            </Button>
+            {isAdminUser && (
+              <Button 
+                onClick={() => {
+                  setEditingUnit(null);
+                  setFormData({
+                    code: '',
+                    name: '',
+                    description: '',
+                    parentId: null,
+                    managerId: '',
+                  });
+                  setShowModal(true);
+                }} 
+                size="sm"
+                className="bg-cyan-600 hover:bg-cyan-700 text-white shadow-md hover:shadow-lg transition-all"
+              >
+                <Plus className="w-5 h-5 mr-2" />
+                Ajouter une unité
+              </Button>
+            )}
           </div>
         </div>
 
@@ -305,13 +364,25 @@ export default function OrganizationalUnitsPage() {
                 </div>
                 <h3 className="text-lg font-semibold text-slate-900 mb-2">Aucune unité organisationnelle</h3>
                 <p className="text-slate-500 mb-4">Commencez par créer votre première unité</p>
-                <Button 
-                  onClick={() => setShowModal(true)}
-                  className="bg-cyan-600 hover:bg-cyan-700 text-white shadow-md hover:shadow-lg"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Créer la première unité
-                </Button>
+                {isAdminUser && (
+                  <Button 
+                    onClick={() => {
+                      setEditingUnit(null);
+                      setFormData({
+                        code: '',
+                        name: '',
+                        description: '',
+                        parentId: null,
+                        managerId: '',
+                      });
+                      setShowModal(true);
+                    }}
+                    className="bg-cyan-600 hover:bg-cyan-700 text-white shadow-md hover:shadow-lg"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Créer la première unité
+                  </Button>
+                )}
               </div>
             ) : (
               <div className="space-y-1">
@@ -377,6 +448,28 @@ export default function OrganizationalUnitsPage() {
                   }))
               ]}
             />
+
+            {isAdminUser && (
+              <Select
+                label="Manager (optionnel)"
+                value={formData.managerId}
+                onChange={(e: any) =>
+                  setFormData({
+                    ...formData,
+                    managerId: e.target.value,
+                  })
+                }
+                options={[
+                  { value: '', label: 'Aucun manager' },
+                  ...managerOptions,
+                ]}
+              />
+            )}
+            {isAdminUser && managerOptions.length === 0 && (
+              <p className="text-xs text-slate-500 -mt-3">
+                Aucun manager disponible. Assurez-vous d\'avoir des utilisateurs avec le rôle MANAGER.
+              </p>
+            )}
 
             {/* Actions */}
             <div className="flex gap-3 pt-4 border-t border-slate-200">

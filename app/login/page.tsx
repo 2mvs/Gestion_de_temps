@@ -41,16 +41,13 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4 py-12 animate-fade-in">
       <div className="w-full max-w-md">
         <div className="text-center mb-8 animate-scale-up">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-cyan-600 rounded-3xl mb-4 shadow-xl">
-            <span className="text-white font-bold text-3xl">G</span>
-          </div>
           <h1 className="text-4xl font-bold text-slate-900 mb-2">
             Bienvenue
           </h1>
           <p className="text-slate-600 text-lg">Connectez-vous à votre compte GTA</p>
         </div>
 
-        <div className="bg-white rounded-3xl shadow-2xl border-2 border-slate-200 p-8 transition-shadow duration-300">
+        <div className="bg-white shadow  border border-slate-200 p-8 transition-shadow duration-300">
           <form onSubmit={handleSubmit} className="space-y-6">
             {error && (
               <div className="bg-red-50 border-2 border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm animate-slide-in">
@@ -66,7 +63,7 @@ export default function LoginPage() {
               required
               placeholder="votre@email.com"
               disabled={loading}
-              className="border-2 focus:ring-4 focus:ring-cyan-200"
+              className="border focus:ring-1 focus:ring-cyan-200"
             />
 
             <Input
@@ -77,14 +74,14 @@ export default function LoginPage() {
               required
               placeholder="••••••••"
               disabled={loading}
-              className="border-2 focus:ring-4 focus:ring-cyan-200"
+              className="border focus:ring-1 focus:ring-cyan-200"
             />
 
             <Button
               type="submit"
               disabled={loading}
               className="w-full bg-cyan-600 hover:bg-cyan-700 text-white shadow-lg hover:shadow-xl transition-all hover:scale-105 active:scale-95"
-              size="lg"
+              size="sm"
               variant="primary"
             >
               {loading ? (
@@ -94,7 +91,7 @@ export default function LoginPage() {
                 </>
               ) : (
                 <>
-                  <LogIn className="w-5 h-5 mr-2" />
+                  {/* <LogIn className="w-5 h-5 mr-2" /> */}
                   Se connecter
                 </>
               )}

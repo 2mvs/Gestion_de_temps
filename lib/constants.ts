@@ -30,18 +30,11 @@ export const GENDER_TYPES = {
   UNKNOWN: { value: 'UNKNOWN', label: 'Non spécifié' },
 } as const;
 
-export const CYCLE_TYPES = {
-  WEEKLY: { value: 'WEEKLY', label: 'Hebdomadaire' },
-  BIWEEKLY: { value: 'BIWEEKLY', label: 'Bihebdomadaire' },
-  MONTHLY: { value: 'MONTHLY', label: 'Mensuel' },
-  CUSTOM: { value: 'CUSTOM', label: 'Personnalisé' },
-} as const;
-
-export const SCHEDULE_TYPES = {
-  STANDARD: { value: 'STANDARD', label: 'Standard' },
-  NIGHT_SHIFT: { value: 'NIGHT_SHIFT', label: 'Nuit' },
-  FLEXIBLE: { value: 'FLEXIBLE', label: 'Flexible' },
-  CUSTOM: { value: 'CUSTOM', label: 'Personnalisé' },
+export const SCHEDULE_SLOT_TYPES = {
+  ENTRY_GRACE: { value: 'ENTRY_GRACE', label: 'Franchise d\'entrée' },
+  BREAK: { value: 'BREAK', label: 'Pause' },
+  OVERTIME: { value: 'OVERTIME', label: 'Heures supplémentaires' },
+  SPECIAL: { value: 'SPECIAL', label: 'Heures spéciales' },
 } as const;
 
 export const TIME_ENTRY_STATUS = {
@@ -79,10 +72,9 @@ export const absenceTypeOptions = getSelectOptions(ABSENCE_TYPES);
 export const contractTypeOptions = getSelectOptions(CONTRACT_TYPES);
 export const employeeStatusOptions = getSelectOptions(EMPLOYEE_STATUS);
 export const genderTypeOptions = getSelectOptions(GENDER_TYPES);
-export const cycleTypeOptions = getSelectOptions(CYCLE_TYPES);
-export const scheduleTypeOptions = getSelectOptions(SCHEDULE_TYPES);
 export const timeEntryStatusOptions = getSelectOptions(TIME_ENTRY_STATUS);
 export const approvalStatusOptions = getSelectOptions(APPROVAL_STATUS);
 export const specialHourTypeOptions = getSelectOptions(SPECIAL_HOUR_TYPES);
 export const userRoleOptions = getSelectOptions(USER_ROLES);
+export const scheduleSlotTypeOptions = getSelectOptions(SCHEDULE_SLOT_TYPES);
 

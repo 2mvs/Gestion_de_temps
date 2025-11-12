@@ -9,8 +9,6 @@ import {
   Calendar,
   Clock,
   Briefcase,
-  Timer,
-  Star,
   RefreshCw,
   ChevronLeft,
   ChevronRight,
@@ -21,7 +19,7 @@ import {
   Bell,
   Settings,
 } from "lucide-react";
-import { removeAuthToken, getUser } from "@/lib/auth";
+import { removeAuthToken, getUser, isBasicUser } from "@/lib/auth";
 import { notificationsAPI } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import Button from "./ui/Button";
@@ -31,17 +29,15 @@ interface LayoutProps {
 }
 
 const menuItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/organizational-units", label: "Organigramme", icon: Building2 },
-  { href: "/employees", label: "Employés", icon: Users },
-  { href: "/schedules", label: "Horaires", icon: Calendar },
-  { href: "/time-entries", label: "Pointages", icon: Clock },
-  { href: "/validation", label: "Validation", icon: RefreshCw },
-  { href: "/absences", label: "Absences", icon: Briefcase },
-  { href: "/overtimes", label: "Heures Supp", icon: Timer },
-  { href: "/special-hours", label: "Heures Spéciales", icon: Star },
-  { href: "/work-cycles", label: "Cycles de Travail", icon: RefreshCw },
-  { href: "/notifications", label: "Notifications", icon: Bell },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, allowedRoles: ['ADMIN','MANAGER','USER','UTILISATEUR'] },
+  { href: "/organizational-units", label: "Organigramme", icon: Building2, allowedRoles: ['ADMIN'] },
+  { href: "/employees", label: "Employés", icon: Users, allowedRoles: ['ADMIN','MANAGER'] },
+  { href: "/schedules", label: "Horaires", icon: Calendar, allowedRoles: ['ADMIN'] },
+  { href: "/time-entries", label: "Pointages", icon: Clock, allowedRoles: ['ADMIN','MANAGER','USER','UTILISATEUR'] },
+  { href: "/validation", label: "Validation", icon: RefreshCw, allowedRoles: ['ADMIN','MANAGER'] },
+  { href: "/absences", label: "Absences", icon: Briefcase, allowedRoles: ['ADMIN','MANAGER','USER','UTILISATEUR'] },
+  { href: "/work-cycles", label: "Cycles de Travail", icon: RefreshCw, allowedRoles: ['ADMIN'] },
+  { href: "/notifications", label: "Notifications", icon: Bell, allowedRoles: ['ADMIN','MANAGER'] },
 ];
 
 export default function Layout({ children }: LayoutProps) {
@@ -59,6 +55,20 @@ export default function Layout({ children }: LayoutProps) {
     const u = getUser();
     setUser(u);
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    if (!isBasicUser(user)) return;
+
+    const allowedPaths = ['/dashboard', '/time-entries', '/absences'];
+    const isAllowed = allowedPaths.some(
+      (path) => pathname === path || pathname.startsWith(`${path}/`)
+    );
+
+    if (!isAllowed) {
+      router.replace('/dashboard');
+    }
+  }, [user, pathname, router]);
 
   useEffect(() => {
     const loadUnreadCount = async () => {
@@ -112,13 +122,10 @@ export default function Layout({ children }: LayoutProps) {
         {/* Sidebar Header */}
         <div className="p-3 border-b border-gray-200 flex items-center justify-between">
           {sidebarOpen && (
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10  rounded-xl flex items-center justify-center shadow-lg">
-                <span className="text-gray-400 font-bold text-lg">G</span>
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">GTA</h1>
-                <p className="text-xs text-gray-500">Gestion du temps</p>
+            <div className="flex items-center space-x-3 w-full">
+              <div className="flex flex-col w-full bg-white items-center justify-center shadow-md">
+                <h1 className="text-xl font-bold text-gray-700"><span className="text-cyan-600 mr-2">OTECH</span>GTA</h1>
+                <p className="text-sm text-gray-500">Gestion de temps</p>
               </div>
             </div>
           )}
@@ -143,7 +150,15 @@ export default function Layout({ children }: LayoutProps) {
 
         {/* Navigation */}
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-          {menuItems.map((item) => {
+          {menuItems
+            .filter(item => {
+              // si pas d'user encore (chargement), laisser tout (ou cacher?) -> on laisse afficher mais non cliquable
+              if (!user) return true;
+              // autoriser si le rôle de l'utilisateur est dans allowedRoles
+              if (!item.allowedRoles) return true;
+              return item.allowedRoles.includes(String(user.role).toUpperCase());
+            })
+            .map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
             return (
@@ -245,7 +260,7 @@ export default function Layout({ children }: LayoutProps) {
                       <p className="text-sm font-medium text-gray-900">
                         {user.email}
                       </p>
-                      <p className="text-xs text-gray-500">Administrateur</p>
+                      <p className="text-xs text-gray-500">{user.role}</p>
                     </>
                   ) : (
                     <>

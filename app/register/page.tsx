@@ -57,15 +57,12 @@ export default function RegisterPage() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4 shadow-lg">
-            <span className="text-white font-bold text-2xl">K</span>
-          </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Créer un compte</h1>
           <p className="text-gray-600">Rejoignez notre plateforme</p>
         </div>
 
         {/* Card */}
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-8">
+        <div className="bg-white shadow border border-gray-200 p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
@@ -96,7 +93,7 @@ export default function RegisterPage() {
                   minLength={6}
                   placeholder="••••••••"
                   disabled={loading}
-                  className="w-full px-4 py-2.5 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors placeholder:text-gray-400 disabled:bg-gray-50"
+                  className="w-full px-3 py-2 pr-10 border border-gray-300 focus:outline-none focus:ring-1 focus:ring-cyan-500 focus:border-transparent transition-colors text-gray-600 placeholder:text-gray-400 disabled:bg-gray-50"
                 />
                 <button
                   type="button"
@@ -126,7 +123,7 @@ export default function RegisterPage() {
                   minLength={6}
                   placeholder="••••••••"
                   disabled={loading}
-                  className="w-full px-4 py-2.5 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors placeholder:text-gray-400 disabled:bg-gray-50"
+                  className="w-full px-3 py-2 pr-10 border border-gray-300 focus:outline-none focus:ring-1 focus:ring-cyan-500 focus:border-transparent transition-colors text-gray-600 placeholder:text-gray-400 disabled:bg-gray-50"
                 />
                 <button
                   type="button"
@@ -145,17 +142,16 @@ export default function RegisterPage() {
             <Button
               type="submit"
               disabled={loading}
-              className="w-full"
+              className="w-full bg-cyan-700 hover:bg-cyan-800"
               size="lg"
             >
               {loading ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent animate-spin mr-2" />
                   Inscription...
                 </>
               ) : (
                 <>
-                  <UserPlus className="w-5 h-5 mr-2" />
                   S'inscrire
                 </>
               )}
@@ -167,7 +163,7 @@ export default function RegisterPage() {
               Vous avez déjà un compte ?{' '}
               <Link
                 href="/login"
-                className="font-medium text-indigo-600 hover:text-indigo-700 transition-colors"
+                className="font-medium text-cyan-600 hover:text-cyan-700 transition-colors"
               >
                 Se connecter
               </Link>

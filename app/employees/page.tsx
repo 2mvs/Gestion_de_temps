@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Search, Edit, Trash2, UserPlus, X, Users, Building2, Upload, Printer } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, UserPlus, X, Users, Building2, Upload, Printer, KeyRound, UserCheck } from 'lucide-react';
 import Layout from '@/components/Layout';
-import { isAuthenticated } from '@/lib/auth';
-import { employeesAPI, organizationalUnitsAPI } from '@/lib/api';
+import { isAuthenticated, getUser, isAdmin } from '@/lib/auth';
+import { employeesAPI, organizationalUnitsAPI, workCyclesAPI } from '@/lib/api';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -14,14 +14,16 @@ import Select from '@/components/ui/Select';
 import Modal from '@/components/ui/Modal';
 import FormActions from '@/components/ui/FormActions';
 import PageHeader from '@/components/ui/PageHeader';
-import { genderTypeOptions, contractTypeOptions, employeeStatusOptions } from '@/lib/constants';
+import { genderTypeOptions, contractTypeOptions, employeeStatusOptions, userRoleOptions } from '@/lib/constants';
 import { toast } from 'react-toastify/unstyled';
 
 export default function EmployeesPage() {
   const router = useRouter();
   const [employees, setEmployees] = useState<any[]>([]);
   const [organizationalUnits, setOrganizationalUnits] = useState<any[]>([]);
+  const [workCycles, setWorkCycles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<any | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<any | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -38,28 +40,115 @@ export default function EmployeesPage() {
     contractType: 'FULL_TIME',
     status: 'ACTIVE',
     organizationalUnitId: null as number | null,
+    workCycleId: '',
   });
+  const [showAccessModal, setShowAccessModal] = useState(false);
+  const [selectedEmployeeForAccess, setSelectedEmployeeForAccess] = useState<any | null>(null);
+  const [accessForm, setAccessForm] = useState({ email: '', password: '', role: 'USER' });
+  const [accessLoading, setAccessLoading] = useState(false);
+  const isCurrentUserAdmin = isAdmin(currentUser);
 
   useEffect(() => {
     if (!isAuthenticated()) {
       router.push('/login');
       return;
     }
+    const storedUser = getUser();
+    setCurrentUser(storedUser);
     loadData();
   }, [router]);
 
   const loadData = async () => {
     try {
-      const [employeesResponse, unitsResponse] = await Promise.all([
+      const [employeesResponse, unitsResponse, cyclesResponse] = await Promise.all([
         employeesAPI.getAll(),
         organizationalUnitsAPI.getAll(),
+        workCyclesAPI.getAll(),
       ]);
       setEmployees(employeesResponse.data || []);
       setOrganizationalUnits(unitsResponse.data || []);
+      setWorkCycles(cyclesResponse.data || cyclesResponse || []);
     } catch (error) {
       console.error('Erreur:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openAccessModal = (employee: any) => {
+    if (!isCurrentUserAdmin) {
+      toast.error('Accès refusé');
+      return;
+    }
+    setSelectedEmployeeForAccess(employee);
+    setAccessForm({
+      email: employee?.user?.email || employee?.email || '',
+      password: '',
+      role: employee?.user?.role || 'USER',
+    });
+    setShowAccessModal(true);
+  };
+
+  const closeAccessModal = () => {
+    setShowAccessModal(false);
+    setSelectedEmployeeForAccess(null);
+    setAccessForm({ email: '', password: '', role: 'USER' });
+    setAccessLoading(false);
+  };
+
+  const handleAccessSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedEmployeeForAccess) return;
+
+    if (!isCurrentUserAdmin) {
+      toast.error('Accès refusé');
+      return;
+    }
+
+    try {
+      setAccessLoading(true);
+      const payload: any = {
+        email: accessForm.email.trim(),
+      };
+      if (!payload.email) {
+        toast.error('Veuillez renseigner un email valide');
+        setAccessLoading(false);
+        return;
+      }
+      const trimmedPassword = accessForm.password.trim();
+      if (trimmedPassword && trimmedPassword.length < 6) {
+        toast.error('Le mot de passe doit contenir au moins 6 caractères');
+        setAccessLoading(false);
+        return;
+      }
+      if (!selectedEmployeeForAccess?.user && trimmedPassword.length < 6) {
+        toast.error('Veuillez définir un mot de passe initial de minimum 6 caractères');
+        setAccessLoading(false);
+        return;
+      }
+      if (trimmedPassword) {
+        payload.password = trimmedPassword;
+      }
+      if (isCurrentUserAdmin) {
+        const selectedRole = (accessForm.role || 'USER').toUpperCase();
+        const allowedRoles = userRoleOptions.map((option) => option.value);
+        if (!allowedRoles.includes(selectedRole)) {
+          toast.error('Rôle utilisateur invalide');
+          setAccessLoading(false);
+          return;
+        }
+        payload.role = selectedRole;
+      }
+
+      const response = await employeesAPI.linkAccount(selectedEmployeeForAccess.id, payload);
+      toast.success(response?.message || 'Accès employé mis à jour');
+      closeAccessModal();
+      await loadData();
+    } catch (error: any) {
+      console.error('Erreur lors de l\'activation de l\'accès:', error);
+      toast.error(error.response?.data?.message || error.message || 'Erreur lors de l\'activation de l\'accès');
+    } finally {
+      setAccessLoading(false);
     }
   };
 
@@ -68,6 +157,11 @@ export default function EmployeesPage() {
     console.log('handleSubmit appelé, editingEmployee:', editingEmployee);
     console.log('formData:', formData);
     
+    if (!isCurrentUserAdmin) {
+      toast.error('Accès refusé');
+      return;
+    }
+
     try {
       if (editingEmployee) {
         // Pour l'update, on ne modifie pas employeeNumber (c'est un champ unique)
@@ -81,6 +175,7 @@ export default function EmployeesPage() {
           contractType: formData.contractType,
           status: formData.status,
           organizationalUnitId: formData.organizationalUnitId || null,
+          workCycleId: formData.workCycleId ? Number(formData.workCycleId) : null,
         };
         console.log('Données de mise à jour envoyées:', updateData);
         console.log('ID employé:', editingEmployee.id);
@@ -100,6 +195,7 @@ export default function EmployeesPage() {
           contractType: formData.contractType,
           status: formData.status,
           organizationalUnitId: formData.organizationalUnitId || null,
+          workCycleId: formData.workCycleId ? Number(formData.workCycleId) : null,
         };
         await employeesAPI.create(createData);
         toast.success('Employé créé avec succès !');
@@ -117,6 +213,7 @@ export default function EmployeesPage() {
         contractType: 'FULL_TIME',
         status: 'ACTIVE',
         organizationalUnitId: null,
+        workCycleId: '',
       });
       loadData();
     } catch (error: any) {
@@ -126,6 +223,10 @@ export default function EmployeesPage() {
   };
 
   const handleEdit = (employee: any) => {
+  if (!isCurrentUserAdmin) {
+    toast.error('Accès refusé');
+    return;
+  }
     setEditingEmployee(employee);
     // Récupérer organizationalUnitId soit directement, soit depuis la relation
     const orgUnitId = employee.organizationalUnitId || employee.organizationalUnit?.id || null;
@@ -141,11 +242,16 @@ export default function EmployeesPage() {
       contractType: employee.contractType || 'FULL_TIME',
       status: employee.status || 'ACTIVE',
       organizationalUnitId: orgUnitId,
+      workCycleId: employee.workCycle?.id ? String(employee.workCycle.id) : '',
     });
     setShowModal(true);
   };
 
   const handleDelete = async (id: number) => {
+  if (!isCurrentUserAdmin) {
+    toast.error('Accès refusé');
+    return;
+  }
     if (!confirm('Êtes-vous sûr de vouloir supprimer cet employé ? Cette action sera archivée.')) {
       return;
     }
@@ -156,6 +262,12 @@ export default function EmployeesPage() {
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Erreur lors de la suppression');
     }
+  };
+
+  const getRoleLabel = (role: string) => {
+    if (!role) return '-';
+    const option = userRoleOptions.find((opt) => opt.value === role);
+    return option ? option.label : role;
   };
 
   const filteredEmployees = employees.filter((emp) =>
@@ -176,7 +288,37 @@ export default function EmployeesPage() {
     );
   }
 
+  const workCycleOptions = [
+    { value: '', label: 'Aucun cycle (non assigné)' },
+    ...(workCycles || []).map((cycle: any) => {
+      const schedule = cycle.schedule || {};
+      const scheduleLabel = schedule?.label
+        ? `${schedule.label} (${schedule.startTime || '--:--'} – ${schedule.endTime || '--:--'})`
+        : 'Horaire non défini';
+      const slotSummary = (schedule.slots || [])
+        .filter((slot: any) => ['OVERTIME', 'SPECIAL'].includes(slot.slotType))
+        .map(
+          (slot: any) =>
+            `${slot.label || slot.slotType} ${slot.multiplier ? `${Number(slot.multiplier).toFixed(2)}x` : ''}`
+              .trim()
+        )
+        .join(' • ');
+      const labelParts = [cycle.label, scheduleLabel];
+      if (slotSummary) {
+        labelParts.push(slotSummary);
+      }
+      return {
+        value: String(cycle.id),
+        label: labelParts.join(' • '),
+      };
+    }),
+  ];
+
   const handleOpenModal = () => {
+    if (!isCurrentUserAdmin) {
+      toast.error('Accès refusé');
+      return;
+    }
     setEditingEmployee(null);
     setFormData({
       employeeNumber: '',
@@ -189,6 +331,7 @@ export default function EmployeesPage() {
       contractType: 'FULL_TIME',
       status: 'ACTIVE',
       organizationalUnitId: null,
+      workCycleId: '',
     });
     setShowModal(true);
   };
@@ -201,10 +344,18 @@ export default function EmployeesPage() {
           title="Employés"
           description="Gérez vos employés et leurs informations"
           icon={Users}
-          actionLabel="Ajouter un employé"
-          actionIcon={Plus}
-          onAction={handleOpenModal}
+          actionLabel={isCurrentUserAdmin ? 'Ajouter un employé' : undefined}
+          actionIcon={isCurrentUserAdmin ? Plus : undefined}
+          onAction={isCurrentUserAdmin ? handleOpenModal : undefined}
         />
+
+        {!isCurrentUserAdmin && (
+          <Card className="mb-6 border border-amber-200 bg-amber-50 text-amber-800 shadow-sm">
+            <div className="p-4 text-sm">
+              Cette vue est en lecture seule. En tant que manager, vous pouvez consulter votre équipe et valider les pointages ou absences, mais la création ou la modification des comptes reste réservée aux administrateurs.
+            </div>
+          </Card>
+        )}
 
         {/* Search Bar with Stats */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
@@ -234,61 +385,64 @@ export default function EmployeesPage() {
         </div>
 
         {/* Import CSV */}
-        <Card className="shadow-soft mb-6">
-          <div className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-              <p className="text-slate-700 font-medium">Importer des employés via un fichier CSV</p>
-              {/* <p className="text-slate-500 text-sm">Colonnes supportées: employeeNumber, firstName, lastName, email, phone, gender, hireDate, contractType, status, organizationalUnitId, workCycleId</p> */}
-            </div>
-            <div className="flex items-center gap-3">
-              <input id="csvFileInput" type="file" accept=".csv" className="hidden" onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                setImporting(true);
-                setImportResult(null);
-                try {
-                  const text = await file.text();
-                  const rows = text.split(/\r?\n/).filter(Boolean);
-                  if (rows.length < 2) {
-                    toast.error('CSV vide ou en-têtes absents');
+        {isCurrentUserAdmin && (
+          <Card className="shadow-soft mb-6">
+            <div className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <p className="text-slate-700 font-medium">Importer des employés via un fichier CSV</p>
+                {/* <p className="text-slate-500 text-sm">Colonnes supportées: employeeNumber, firstName, lastName, email, phone, gender, hireDate, contractType, status, organizationalUnitId, workCycleId</p> */}
+              </div>
+              <div className="flex items-center gap-3">
+                <input id="csvFileInput" type="file" accept=".csv" className="hidden" onChange={async (e) => {
+                  if (!isCurrentUserAdmin) return;
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setImporting(true);
+                  setImportResult(null);
+                  try {
+                    const text = await file.text();
+                    const rows = text.split(/\r?\n/).filter(Boolean);
+                    if (rows.length < 2) {
+                      toast.error('CSV vide ou en-têtes absents');
+                      setImporting(false);
+                      return;
+                    }
+                    const headers = rows[0].split(',').map(h => h.trim());
+                    const items = rows.slice(1).map(line => {
+                      const values = line.split(',');
+                      const obj: any = {};
+                      headers.forEach((h, i) => obj[h] = values[i]?.trim());
+                      return obj;
+                    });
+                    const result = await employeesAPI.bulkImport(items);
+                    setImportResult(result?.data || result);
+                    await loadData();
+                  } catch (err: any) {
+                    toast.error(err?.response?.data?.message || err?.message || 'Erreur lors de l\'import');
+                  } finally {
                     setImporting(false);
-                    return;
+                    // reset input to allow re-upload same file if needed
+                    const input = document.getElementById('csvFileInput') as HTMLInputElement | null;
+                    if (input) input.value = '';
                   }
-                  const headers = rows[0].split(',').map(h => h.trim());
-                  const items = rows.slice(1).map(line => {
-                    const values = line.split(',');
-                    const obj: any = {};
-                    headers.forEach((h, i) => obj[h] = values[i]?.trim());
-                    return obj;
-                  });
-                  const result = await employeesAPI.bulkImport(items);
-                  setImportResult(result?.data || result);
-                  await loadData();
-                } catch (err: any) {
-                  toast.error(err?.response?.data?.message || err?.message || 'Erreur lors de l\'import');
-                } finally {
-                  setImporting(false);
-                  // reset input to allow re-upload same file if needed
-                  const input = document.getElementById('csvFileInput') as HTMLInputElement | null;
-                  if (input) input.value = '';
-                }
-              }} />
-              <Button
-                onClick={() => (document.getElementById('csvFileInput') as HTMLInputElement)?.click()}
-                disabled={importing}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md hover:shadow-lg"
-              >
-                <Upload className="w-4 h-4 mr-2" />
-                {importing ? 'Import en cours...' : 'Importer CSV'}
-              </Button>
+                }} />
+                <Button
+                  onClick={() => (document.getElementById('csvFileInput') as HTMLInputElement)?.click()}
+                  disabled={importing}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md hover:shadow-lg"
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  {importing ? 'Import en cours...' : 'Importer CSV'}
+                </Button>
+              </div>
             </div>
-          </div>
-          {importResult && (
-            <div className="px-4 pb-4 text-sm text-slate-700">
-              <p>Créés: <span className="font-semibold text-emerald-700">{importResult.createdCount}</span> — Ignorés: <span className="font-semibold text-amber-700">{importResult.skippedCount}</span></p>
-            </div>
-          )}
-        </Card>
+            {importResult && (
+              <div className="px-4 pb-4 text-sm text-slate-700">
+                <p>Créés: <span className="font-semibold text-emerald-700">{importResult.createdCount}</span> — Ignorés: <span className="font-semibold text-amber-700">{importResult.skippedCount}</span></p>
+              </div>
+            )}
+          </Card>
+        )}
 
         {/* Table */}
         <Card className="shadow-elevated overflow-hidden">
@@ -312,7 +466,13 @@ export default function EmployeesPage() {
                     Unité organisationnelle
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase ">
+                    Cycle / Horaire
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase ">
                     Statut
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase ">
+                    Accès au Portail
                   </th>
                   <th className="px-6 py-4 text-right text-xs font-bold text-slate-700 uppercase">
                     Actions
@@ -361,12 +521,57 @@ export default function EmployeesPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
+                      {emp.workCycle ? (
+                        <div className="flex flex-col">
+                          <span className="text-sm font-semibold text-slate-800">
+                            {emp.workCycle.label}
+                          </span>
+                          {emp.workCycle.schedule && (
+                            <span className="text-xs text-slate-500">
+                              {emp.workCycle.schedule.startTime} → {emp.workCycle.schedule.endTime}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-slate-400 italic">Non assigné</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <Badge variant={emp.status === 'ACTIVE' ? 'success' : 'secondary'} className="shadow-sm">
                         {emp.status}
                       </Badge>
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {emp.user ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant="success" className="shadow-sm flex items-center gap-1">
+                            <UserCheck className="w-3 h-3" />
+                            Activé
+                          </Badge>
+                          <Badge variant="outline" className="shadow-sm">
+                            {getRoleLabel(emp.user.role)}
+                          </Badge>
+                          <span className="text-xs text-slate-500 truncate max-w-[120px]" title={emp.user.email}>
+                            {emp.user.email}
+                          </span>
+                        </div>
+                      ) : (
+                        <Badge variant="secondary" className="shadow-sm">
+                          Non activé
+                        </Badge>
+                      )}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end space-x-2">
+                        {isCurrentUserAdmin && (
+                          <button
+                            onClick={() => openAccessModal(emp)}
+                            className="p-2.5 text-emerald-600 bg-emerald-100 hover:bg-emerald-50 transition-all hover:scale-110 active:scale-95"
+                            title={emp.user ? 'Mettre à jour l\'accès' : 'Donner l\'accès'}
+                          >
+                            <KeyRound className="w-4 h-4" />
+                          </button>
+                        )}
                         <button
                           onClick={() => router.push(`/employees/${emp.id}/payslip`)}
                           className="p-2.5 text-blue-600 bg-blue-100 hover:bg-blue-50 transition-all hover:scale-110 active:scale-95"
@@ -374,20 +579,24 @@ export default function EmployeesPage() {
                         >
                           <Printer className="w-4 h-4" />
                         </button>
-                        <button
-                          onClick={() => handleEdit(emp)}
-                          className="p-2.5 text-cyan-600 bg-cyan-100 hover:bg-cyan-50 transition-all hover:scale-110 active:scale-95"
-                          title="Modifier"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(emp.id)}
-                          className="p-2.5 text-red-600 bg-red-100 hover:bg-red-50 transition-all hover:scale-110 active:scale-95"
-                          title="Supprimer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {isCurrentUserAdmin && (
+                          <button
+                            onClick={() => handleEdit(emp)}
+                            className="p-2.5 text-cyan-600 bg-cyan-100 hover:bg-cyan-50 transition-all hover:scale-110 active:scale-95"
+                            title="Modifier"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                        )}
+                        {isCurrentUserAdmin && (
+                          <button
+                            onClick={() => handleDelete(emp.id)}
+                            className="p-2.5 text-red-600 bg-red-100 hover:bg-red-50 transition-all hover:scale-110 active:scale-95"
+                            title="Supprimer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -406,17 +615,90 @@ export default function EmployeesPage() {
           </div>
         </Card>
 
+        {isCurrentUserAdmin && (
+          <Modal
+            isOpen={showAccessModal}
+            onClose={closeAccessModal}
+            title={selectedEmployeeForAccess?.user ? "Mettre à jour l'accès utilisateur" : "Donner l'accès utilisateur"}
+            description="Autorisez un employé à se connecter à l'interface en lui attribuant un compte utilisateur."
+          >
+            <form onSubmit={handleAccessSubmit} className="p-6 space-y-6">
+              <div>
+                <Input
+                  label="Email de connexion *"
+                  type="email"
+                  required
+                  value={accessForm.email}
+                  onChange={(e) => setAccessForm({ ...accessForm, email: e.target.value })}
+                />
+              </div>
+              <div>
+                <Input
+                  label={selectedEmployeeForAccess?.user ? 'Nouveau mot de passe (optionnel)' : 'Mot de passe initial *'}
+                  type="password"
+                  required={!selectedEmployeeForAccess?.user}
+                  value={accessForm.password}
+                  onChange={(e) => setAccessForm({ ...accessForm, password: e.target.value })}
+                  placeholder={selectedEmployeeForAccess?.user ? "Laisser vide pour conserver l'actuel" : ''}
+                />
+                <p className="text-xs text-slate-500 mt-2">
+                  {selectedEmployeeForAccess?.user
+                    ? 'Laissez vide pour conserver le mot de passe actuel. Minimum 6 caractères si vous souhaitez le modifier.'
+                    : 'Mot de passe initial de minimum 6 caractères.'}
+                </p>
+              </div>
+
+              <Select
+                label="Rôle utilisateur"
+                value={accessForm.role}
+                onChange={(e) => setAccessForm({ ...accessForm, role: e.target.value })}
+                options={userRoleOptions}
+              />
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={closeAccessModal}
+                  disabled={accessLoading}
+                  className="hover:bg-slate-100 border-2"
+                >
+                  Annuler
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={accessLoading}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md hover:shadow-lg"
+                >
+                  {accessLoading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                      Traitement...
+                    </>
+                  ) : (
+                    <>
+                      <KeyRound className="w-4 h-4 mr-2" />
+                      {selectedEmployeeForAccess?.user ? 'Mettre à jour' : "Créer l'accès"}
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
+          </Modal>
+        )}
+
         {/* Modal Amélioré */}
-        <Modal
-          isOpen={showModal}
-          onClose={() => {
-            setShowModal(false);
-            setEditingEmployee(null);
-          }}
-          title={editingEmployee ? 'Modifier l\'employé' : 'Nouvel Employé'}
-          description={editingEmployee ? 'Modifiez les informations ci-dessous' : 'Remplissez les informations pour créer un nouvel employé'}
-        >
-          <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        {isCurrentUserAdmin && (
+          <Modal
+            isOpen={showModal}
+            onClose={() => {
+              setShowModal(false);
+              setEditingEmployee(null);
+            }}
+            title={editingEmployee ? "Modifier l'employé" : 'Nouvel Employé'}
+            description={editingEmployee ? 'Modifiez les informations ci-dessous' : 'Remplissez les informations pour créer un nouvel employé'}
+          >
+            <form onSubmit={handleSubmit} className="p-6 space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Input
                     label="Numéro d'employé *"
@@ -498,6 +780,12 @@ export default function EmployeesPage() {
                     })),
                   ]}
                 />
+                <Select
+                  label="Cycle de travail (horaire)"
+                  value={formData.workCycleId}
+                  onChange={(e) => setFormData({ ...formData, workCycleId: e.target.value })}
+                  options={workCycleOptions}
+                />
             
             <FormActions
               onCancel={() => {
@@ -508,8 +796,9 @@ export default function EmployeesPage() {
               isEditing={!!editingEmployee}
               submitIcon={editingEmployee ? undefined : <UserPlus className="w-4 h-4 mr-2" />}
             />
-          </form>
-        </Modal>
+            </form>
+          </Modal>
+        )}
       </div>
     </Layout>
   );

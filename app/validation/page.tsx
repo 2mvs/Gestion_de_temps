@@ -15,7 +15,7 @@ import {
   Settings
 } from 'lucide-react';
 import Layout from '@/components/Layout';
-import { isAuthenticated } from '@/lib/auth';
+import { isAuthenticated, hasAnyRole, getUser } from '@/lib/auth';
 import { timeEntriesAPI, employeesAPI } from '@/lib/api';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -74,6 +74,16 @@ export default function ValidationPage() {
       return;
     }
     loadEmployees();
+  }, [router]);
+
+  // Vérifier le rôle : seuls ADMIN et MANAGER ont accès
+  useEffect(() => {
+    const u = getUser();
+    if (u && !hasAnyRole(['ADMIN','MANAGER'], u)) {
+      // si non autorisé, rediriger vers le dashboard après un court délai
+      console.warn('Accès refusé à la page de validation pour le rôle :', u.role);
+      router.replace('/dashboard');
+    }
   }, [router]);
 
   const loadEmployees = async () => {

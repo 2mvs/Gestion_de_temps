@@ -19,7 +19,6 @@ import Badge from '@/components/ui/Badge';
 import { isAuthenticated, getUser, isAdmin } from '@/lib/auth';
 import { employeesAPI, overtimesAPI, specialHoursAPI } from '@/lib/api';
 import { approvalStatusOptions } from '@/lib/constants';
-import { formatCurrency } from '@/lib/utils';
 
 interface EmployeeOption {
   value: string;

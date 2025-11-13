@@ -30,6 +30,7 @@ interface PayslipData {
     totalHours: number;
     totalOvertimeHours: number;
     totalSpecialHours: number;
+    totalBreakHours: number;
     totalAbsenceDays: number;
     workDays: number;
   };
@@ -78,6 +79,9 @@ export default function PayslipPage() {
       setLoading(false);
     }
   };
+
+  const formatHours = (value?: number | null) =>
+    typeof value === 'number' ? value.toFixed(2) : '0.00';
 
   const handlePrint = () => {
     if (!printRef.current) return;
@@ -260,7 +264,7 @@ export default function PayslipPage() {
         </div>
 
         {/* Payslip Content */}
-        <div ref={printRef} className="bg-white p-8 shadow-lg max-w-4xl mx-auto">
+        <div ref={printRef} className="bg-white p-8 shadow-lg max-w-4xl mx-auto payslip-printable">
           {/* Header */}
           <div className="payslip-header">
             <h1>FICHE DE PAIE</h1>
@@ -317,7 +321,10 @@ export default function PayslipPage() {
                     <th>Date</th>
                     <th>Entrée</th>
                     <th>Sortie</th>
-                    <th>Heures</th>
+                    <th>Heures normales</th>
+                    <th>Heures sup.</th>
+                    <th>Heures spéciales</th>
+                    <th>Pause</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -326,12 +333,18 @@ export default function PayslipPage() {
                       <td>{formatDate(entry.date)}</td>
                       <td>{entry.clockIn ? new Date(entry.clockIn).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
                       <td>{entry.clockOut ? new Date(entry.clockOut).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
-                      <td>{entry.totalHours?.toFixed(2) || '0.00'} h</td>
+                      <td>{formatHours(entry.calculatedHours?.normalHours)} h</td>
+                      <td>{formatHours(entry.calculatedHours?.overtimeHours)} h</td>
+                      <td>{formatHours(entry.calculatedHours?.specialHours)} h</td>
+                      <td>{formatHours(entry.calculatedHours?.breakdown.other)} h</td>
                     </tr>
                   ))}
                   <tr className="total-row">
                     <td colSpan={3}><strong>Total:</strong></td>
-                    <td><strong>{payslipData.summary.totalHours.toFixed(2)} h</strong></td>
+                    <td><strong>{formatHours(payslipData.summary.totalHours)} h</strong></td>
+                    <td><strong>{formatHours(payslipData.summary.totalOvertimeHours)} h</strong></td>
+                    <td><strong>{formatHours(payslipData.summary.totalSpecialHours)} h</strong></td>
+                    <td><strong>{formatHours(payslipData.summary.totalBreakHours)} h</strong></td>
                   </tr>
                 </tbody>
               </table>
@@ -359,9 +372,9 @@ export default function PayslipPage() {
                     </tr>
                   ))}
                   <tr className="total-row">
-                    <td colSpan={1}><strong>Total:</strong></td>
-                    <td><strong>{payslipData.summary.totalOvertimeHours.toFixed(2)} h</strong></td>
-                    <td></td>
+                  <td colSpan={1}><strong>Total:</strong></td>
+                  <td><strong>{formatHours(payslipData.summary.totalOvertimeHours)} h</strong></td>
+                  <td></td>
                   </tr>
                 </tbody>
               </table>
@@ -392,7 +405,7 @@ export default function PayslipPage() {
                   ))}
                   <tr className="total-row">
                     <td colSpan={2}><strong>Total:</strong></td>
-                    <td><strong>{payslipData.summary.totalSpecialHours.toFixed(2)} h</strong></td>
+                  <td><strong>{formatHours(payslipData.summary.totalSpecialHours)} h</strong></td>
                     <td></td>
                   </tr>
                 </tbody>
@@ -469,6 +482,82 @@ export default function PayslipPage() {
           </div>
         </div>
       </div>
+
+      <style jsx>{`
+        .payslip-printable {
+          font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+          color: #0f172a;
+          font-size: 0.95rem;
+          line-height: 1.55;
+        }
+
+        .payslip-printable h1 {
+          font-size: 1.75rem;
+          font-weight: 700;
+          margin-bottom: 0.25rem;
+          color: #0f172a;
+        }
+
+        .payslip-printable h2 {
+          font-size: 1.05rem;
+          font-weight: 600;
+          margin-bottom: 0.5rem;
+          color: #0f172a;
+        }
+
+        .payslip-printable table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 1.25rem;
+          background-color: #ffffff;
+        }
+
+        .payslip-printable table th,
+        .payslip-printable table td {
+          border: 1px solid #cbd5f5;
+          padding: 0.65rem;
+          text-align: left;
+        }
+
+        .payslip-printable table th {
+          background-color: #e2e8f0;
+          color: #0f172a;
+          font-weight: 600;
+          font-size: 0.85rem;
+          text-transform: uppercase;
+          letter-spacing: 0.02em;
+        }
+
+        .payslip-printable table td {
+          font-size: 0.9rem;
+        }
+
+        .payslip-printable .total-row td {
+          font-weight: 700;
+          background-color: #f8fafc;
+        }
+
+        .payslip-printable .payslip-section {
+          margin-bottom: 1.75rem;
+        }
+
+        .payslip-printable .company-info {
+          font-size: 0.85rem;
+          color: #475569;
+        }
+
+        @media (max-width: 768px) {
+          .payslip-printable {
+            font-size: 0.9rem;
+            padding: 1.5rem;
+          }
+
+          .payslip-printable table th,
+          .payslip-printable table td {
+            padding: 0.5rem;
+          }
+        }
+      `}</style>
     </Layout>
   );
 }

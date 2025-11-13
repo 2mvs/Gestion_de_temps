@@ -94,6 +94,7 @@ export const absencesAPI = {
 
 // API Overtimes
 export const overtimesAPI = {
+  getAll: (params?: any) => api.get('/overtimes', { params }).then((res) => res.data),
   getByEmployee: (employeeId: number) =>
     api.get(`/overtimes/employee/${employeeId}`).then((res) => res.data),
   create: (data: any) => api.post('/overtimes', data).then((res) => res.data),
@@ -103,6 +104,7 @@ export const overtimesAPI = {
 
 // API Special Hours
 export const specialHoursAPI = {
+  getAll: (params?: any) => api.get('/special-hours', { params }).then((res) => res.data),
   getByEmployee: (employeeId: number) =>
     api.get(`/special-hours/employee/${employeeId}`).then((res) => res.data),
   create: (data: any) => api.post('/special-hours', data).then((res) => res.data),

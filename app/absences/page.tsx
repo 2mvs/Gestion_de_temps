@@ -14,11 +14,16 @@ import SelectSearch from '@/components/ui/SelectSearch';
 import Badge from '@/components/ui/Badge';
 import Modal from '@/components/ui/Modal';
 import PageHeader from '@/components/ui/PageHeader';
-import { absenceTypeOptions } from '@/lib/constants';
+import { absenceTypeOptions, approvalStatusOptions } from '@/lib/constants';
+
+const normalizeStatus = (value?: string | null) => (value || '').toString().toUpperCase();
+const isApprovalPending = (status: any) => ['EN_ATTENTE', 'PENDING'].includes(normalizeStatus(status));
+const isApprovalApproved = (status: any) => ['APPROUVE', 'APPROVED'].includes(normalizeStatus(status));
+const isApprovalRejected = (status: any) => ['REJETE', 'REJECTED'].includes(normalizeStatus(status));
 
 const initialFormState = {
   employeeId: '',
-  absenceType: 'VACATION',
+  absenceType: 'CONGES',
   startDate: '',
   endDate: '',
   days: 0,
@@ -362,9 +367,9 @@ export default function AbsencesPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                     <Badge
                       variant={
-                        absence.status === 'APPROVED'
+                        isApprovalApproved(absence.status)
                           ? 'success'
-                          : absence.status === 'REJECTED'
+                          : isApprovalRejected(absence.status)
                           ? 'error'
                           : 'warning'
                       }
@@ -385,7 +390,7 @@ export default function AbsencesPage() {
                         {currentUser &&
                           isBasicUser(currentUser) &&
                         currentUser.employee?.id === absence.employee?.id &&
-                        absence.status === 'PENDING' && (
+                        isApprovalPending(absence.status) && (
                             <button
                               onClick={() => handleEdit(absence)}
                               className="p-2.5 text-cyan-600 hover:bg-cyan-50 rounded-lg transition-all hover:scale-110 active:scale-95"
@@ -394,7 +399,7 @@ export default function AbsencesPage() {
                               <Edit className="w-4 h-4" />
                             </button>
                           )}
-                      {absence.status === 'PENDING' && canModerateAbsences && (
+                      {isApprovalPending(absence.status) && canModerateAbsences && (
                           <>
                             <button
                             onClick={() => handleApprove(absence.id, 'APPROVED')}

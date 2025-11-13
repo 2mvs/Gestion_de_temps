@@ -18,8 +18,15 @@ import {
 } from 'lucide-react';
 import Layout from '@/components/Layout';
 import ManagerDashboard from '@/components/ManagerDashboard';
-import { getUser, isAuthenticated, isBasicUser } from '@/lib/auth';
-import { employeesAPI, absencesAPI, reportsAPI, timeEntriesAPI, auditLogsAPI } from '@/lib/api';
+import { getUser, isAuthenticated, isBasicUser, isManager } from '@/lib/auth';
+import {
+  employeesAPI,
+  absencesAPI,
+  reportsAPI,
+  timeEntriesAPI,
+  auditLogsAPI,
+  overtimesAPI,
+} from '@/lib/api';
 import Badge from '@/components/ui/Badge';
 import Card from '@/components/ui/Card';
 import Modal from '@/components/ui/Modal';
@@ -57,6 +64,16 @@ const translateModel = (model?: string) => {
   if (!model) return 'Modèle inconnu';
   return MODEL_TRANSLATIONS[model] || model;
 };
+
+const normalizeStatus = (value?: string | null) => (value || '').toString().toUpperCase();
+
+const isTimeEntryCompleted = (status: any) => ['TERMINE', 'COMPLETED'].includes(normalizeStatus(status));
+const isAbsencePending = (status: any) => ['EN_ATTENTE', 'PENDING'].includes(normalizeStatus(status));
+const isAbsenceApproved = (status: any) => ['APPROUVE', 'APPROVED'].includes(normalizeStatus(status));
+const isAbsenceRejected = (status: any) => ['REJETE', 'REJECTED'].includes(normalizeStatus(status));
+const isMale = (gender: any) => ['HOMME', 'MALE'].includes(normalizeStatus(gender));
+const isFemale = (gender: any) => ['FEMME', 'FEMALE'].includes(normalizeStatus(gender));
+const isEmployeeActive = (status: any) => ['ACTIF', 'ACTIVE'].includes(normalizeStatus(status));
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -132,13 +149,14 @@ export default function DashboardPage() {
   };
 
   const getStatusBadgeVariant = (status: string) => {
-    switch (status) {
-      case 'COMPLETED':
-      case 'APPROVED':
+    const normalized = normalizeStatus(status);
+    switch (normalized) {
+      case 'TERMINE':
+      case 'APPROUVE':
         return 'success';
-      case 'PENDING':
+      case 'EN_ATTENTE':
         return 'warning';
-      case 'REJECTED':
+      case 'REJETE':
         return 'error';
       default:
         return 'secondary';
@@ -187,14 +205,20 @@ export default function DashboardPage() {
 
     if (isBasicUser(user)) {
       loadUserDashboard(user);
-    } else {
-      loadStats();
-      loadAuditLogs(0);
+      return;
     }
+
+    if (isManager(user)) {
+      setLoading(false);
+      return;
+    }
+
+    loadStats();
+    loadAuditLogs(0);
   }, [user]);
 
   // Si l'utilisateur est manager, afficher la vue manager
-  if (user && (user.role === 'MANAGER' || user.role === 'MANGER')) {
+  if (user && isManager(user)) {
     return <ManagerDashboard />;
   }
 
@@ -227,19 +251,19 @@ export default function DashboardPage() {
       const entriesData = entriesResponse?.data ?? entriesResponse ?? [];
       const absencesData = absencesResponse?.data ?? absencesResponse ?? [];
 
-      const completedEntries = entriesData.filter((entry: any) => entry.status === 'COMPLETED');
+      const completedEntries = entriesData.filter((entry: any) => isTimeEntryCompleted(entry.status));
       const totalHours = completedEntries.reduce(
         (sum: number, entry: any) => sum + (entry.totalHours || 0),
         0
       );
 
-      const relevantAbsences = absencesData.filter((absence: any) => absence.status !== 'REJECTED');
+      const relevantAbsences = absencesData.filter((absence: any) => !isAbsenceRejected(absence.status));
       const totalAbsenceDays = relevantAbsences.reduce(
         (sum: number, absence: any) => sum + (absence.days || 0),
         0
       );
-      const pendingAbsences = absencesData.filter((absence: any) => absence.status === 'PENDING').length;
-      const approvedAbsences = absencesData.filter((absence: any) => absence.status === 'APPROVED').length;
+      const pendingAbsences = absencesData.filter((absence: any) => isAbsencePending(absence.status)).length;
+      const approvedAbsences = absencesData.filter((absence: any) => isAbsenceApproved(absence.status)).length;
 
       setUserStats({
         totalHours: Math.round(totalHours * 100) / 100,
@@ -280,57 +304,171 @@ export default function DashboardPage() {
   async function loadStats() {
     setLoading(true);
     try {
-      // Charger toutes les statistiques en parallèle
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonthIndex = now.getMonth();
+      const currentMonthNumber = currentMonthIndex + 1;
+      const monthStart = new Date(currentYear, currentMonthIndex, 1);
+      const monthEnd = new Date(currentYear, currentMonthNumber, 0, 23, 59, 59, 999);
+      const monthStartISO = monthStart.toISOString();
+      const monthEndISO = monthEnd.toISOString();
+
+      const trendMonths = Array.from({ length: 6 }).map((_, idx) => {
+        const date = new Date(currentYear, currentMonthIndex - (5 - idx), 1);
+        return {
+          year: date.getFullYear(),
+          month: date.getMonth() + 1,
+          label: `${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`,
+        };
+      });
+
+      const trendPromises = trendMonths.map(({ year, month }) =>
+        reportsAPI
+          .getMonthly({ year, month })
+          .then((res) => {
+            const data = res?.data ?? {};
+            return {
+              year,
+              month,
+              summary: data.summary || {
+                totalTimeEntries: 0,
+                totalHours: 0,
+                totalAbsences: 0,
+                totalAbsenceDays: 0,
+              },
+              timeEntries: data.timeEntries || [],
+              absences: data.absences || [],
+            };
+          })
+          .catch(() => ({
+            year,
+            month,
+            summary: {
+              totalTimeEntries: 0,
+              totalHours: 0,
+              totalAbsences: 0,
+              totalAbsenceDays: 0,
+            },
+            timeEntries: [],
+            absences: [],
+          }))
+      );
+
       const [
-        generalStatsRes,
         employeesRes,
-        absencesRes
+        absencesRes,
+        overtimeRes,
+        monthlyTrendResults,
       ] = await Promise.all([
-        reportsAPI.getGeneral(),
         employeesAPI.getAll(),
-        absencesAPI.getAll()
+        absencesAPI.getAll(),
+        overtimesAPI.getAll({ startDate: monthStartISO, endDate: monthEndISO }),
+        Promise.all(trendPromises),
       ]);
+      const employees = employeesRes?.data || employeesRes || [];
+      const absences = absencesRes?.data || absencesRes || [];
+      const overtimeEntries = overtimeRes?.data || overtimeRes || [];
+      const monthlyTrendData = monthlyTrendResults || [];
+      const currentMonthlyData =
+        monthlyTrendData[monthlyTrendData.length - 1] || {
+          summary: {
+            totalTimeEntries: 0,
+            totalHours: 0,
+            totalAbsences: 0,
+            totalAbsenceDays: 0,
+          },
+          timeEntries: [],
+          absences: [],
+        };
 
-      const generalStats = generalStatsRes.data || {};
-      const employees = employeesRes.data || [];
-      const absences = absencesRes.data || [];
+      const currentSummary = currentMonthlyData.summary;
+      const maleCount = employees.filter((e: any) => isMale(e.gender)).length;
+      const femaleCount = employees.filter((e: any) => isFemale(e.gender)).length;
+      const activeEmployees = employees.filter((e: any) => isEmployeeActive(e.status)).length;
 
-      // Calculs démographiques
-      const maleCount = employees.filter((e: any) => e.gender === 'MALE').length;
-      const femaleCount = employees.filter((e: any) => e.gender === 'FEMALE').length;
-      const activeEmployees = employees.filter((e: any) => e.status === 'ACTIVE').length;
+      const daysInMonth = new Date(currentYear, currentMonthNumber, 0).getDate();
+      const theoreticalHours = employees.reduce((sum: number, emp: any) => {
+        const hoursPerDay = emp.workCycle?.schedule?.theoreticalDayHours ?? 8;
+        return sum + (hoursPerDay || 0) * daysInMonth;
+      }, 0);
 
-      // Générer des alertes basées sur les données
-      const alerts = generateAlerts(generalStats, employees, absences);
+      const totalOvertimeHours = overtimeEntries.reduce(
+        (sum: number, entry: any) => sum + (entry.hours || 0),
+        0
+      );
+
+      const employeeHoursMap = new Map<number, {
+        employeeId: number;
+        employeeNumber: string;
+        firstName: string;
+        lastName: string;
+        totalWorkedHours: number;
+        expectedHours: number;
+      }>();
+
+      currentMonthlyData.timeEntries.forEach((entry: any) => {
+        const hours = entry.totalHours || 0;
+        const employee = entry.employee;
+        if (!employee) return;
+        const existing = employeeHoursMap.get(employee.id) || {
+          employeeId: employee.id,
+          employeeNumber: employee.employeeNumber || '-',
+          firstName: employee.firstName || '',
+          lastName: employee.lastName || '',
+          totalWorkedHours: 0,
+          expectedHours:
+            ((employees.find((e: any) => e.id === employee.id)?.workCycle?.schedule?.theoreticalDayHours) ?? 8) *
+            daysInMonth,
+        };
+        existing.totalWorkedHours += hours;
+        employeeHoursMap.set(employee.id, existing);
+      });
+
+      const topEmployees = Array.from(employeeHoursMap.values())
+        .map((emp) => {
+          const efficiency =
+            emp.expectedHours > 0 ? (emp.totalWorkedHours / emp.expectedHours) * 100 : 0;
+          return {
+            ...emp,
+            totalWorkedHours: Math.round(emp.totalWorkedHours * 100) / 100,
+            efficiencyRate: Math.min(150, Math.max(0, efficiency)),
+          };
+        })
+        .sort((a, b) => b.totalWorkedHours - a.totalWorkedHours)
+        .slice(0, 5);
+
+      const monthlyTrends = monthlyTrendData.map((item, index) => ({
+        label: trendMonths[index]?.label ?? `${String(item.month).padStart(2, '0')}/${item.year}`,
+        totalWorkedHours: item.summary.totalHours || 0,
+        totalTimeEntries: item.summary.totalTimeEntries || 0,
+      }));
+
+      const efficiencyRate =
+        theoreticalHours > 0
+          ? Math.min(150, Math.max(0, (currentSummary.totalHours / theoreticalHours) * 100))
+          : 0;
+
+      const alerts = generateAlerts(employees, absences, overtimeEntries);
 
       setStats({
-        // Statistiques générales
         totalEmployees: employees.length,
         activeEmployees,
-        totalTimeEntries: 0,
+        totalTimeEntries: currentSummary.totalTimeEntries || 0,
         totalAbsences: absences.length,
-        totalOvertime: generalStats.pendingOvertimes || 0,
-        averageHoursPerDay: 0,
-        totalWorkedHours: 0,
-        totalTheoreticalHours: 0,
-        efficiencyRate: 95,
-
-        // Statistiques démographiques
+        totalOvertime: Math.round(totalOvertimeHours * 100) / 100,
+        averageHoursPerDay:
+          currentSummary.totalTimeEntries > 0
+            ? currentSummary.totalHours / currentSummary.totalTimeEntries
+            : 0,
+        totalWorkedHours: currentSummary.totalHours || 0,
+        totalTheoreticalHours: theoreticalHours,
+        efficiencyRate,
         maleCount,
         femaleCount,
-        pendingAbsences: absences.filter((a: any) => a.status === 'PENDING').length,
-
-        // Statistiques avancées
-        topEmployees: employees.slice(0, 5).map((emp: any, idx: number) => ({
-          employeeId: emp.id,
-          employeeNumber: emp.employeeNumber,
-          firstName: emp.firstName,
-          lastName: emp.lastName,
-          totalWorkedHours: 160 - (idx * 10),
-          efficiencyRate: 98 - (idx * 2)
-        })),
-        monthlyTrends: [],
-        alerts
+        pendingAbsences: absences.filter((a: any) => isAbsencePending(a.status)).length,
+        topEmployees,
+        monthlyTrends,
+        alerts,
       });
     } catch (error) {
       console.error('Erreur lors du chargement des stats:', error);
@@ -340,11 +478,15 @@ export default function DashboardPage() {
   }
 
   // Génère des alertes basées sur les métriques
-  function generateAlerts(generalStats: any, employees: any[], absences: any[]) {
+  function generateAlerts(
+    employees: any[],
+    absences: any[],
+    overtimeEntries: any[]
+  ) {
     const alerts = [];
 
     // Alerte si beaucoup d'absences en attente
-    const pendingAbsences = absences.filter((a: any) => a.status === 'PENDING').length;
+    const pendingAbsences = absences.filter((a: any) => isAbsencePending(a.status)).length;
     if (pendingAbsences > 0) {
       alerts.push({
         type: 'info',
@@ -363,10 +505,13 @@ export default function DashboardPage() {
     }
 
     // Alerte si heures sup en attente
-    if (generalStats.pendingOvertimes > 0) {
+    const pendingOvertimes = overtimeEntries.filter(
+      (ot: any) => normalizeStatus(ot.status) === 'EN_ATTENTE'
+    ).length;
+    if (pendingOvertimes > 0) {
       alerts.push({
         type: 'warning',
-        message: `${generalStats.pendingOvertimes} demande${generalStats.pendingOvertimes > 1 ? 's' : ''} d'heures sup. en attente`,
+        message: `${pendingOvertimes} demande${pendingOvertimes > 1 ? 's' : ''} d'heures sup. en attente`,
         icon: AlertTriangle
       });
     }
@@ -733,15 +878,21 @@ export default function DashboardPage() {
             </div>
             <div className="space-y-3">
               {stats.monthlyTrends.length > 0 ? (
-                stats.monthlyTrends.slice(-6).map((month, index) => (
-                  <div key={month.month} className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">{month.month}</span>
+                stats.monthlyTrends.slice(-6).map((month, index) => {
+                  const maxHours = Math.max(
+                    ...stats.monthlyTrends.map((m) => m.totalWorkedHours || 0)
+                  );
+                  const ratio =
+                    maxHours > 0 ? (month.totalWorkedHours / maxHours) * 100 : 0;
+                  return (
+                    <div key={`${month.label}-${index}`} className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">{month.label}</span>
                     <div className="flex items-center gap-2">
                       <div className="flex-1 bg-gray-200 rounded-full h-2">
                         <div
                           className="bg-blue-600 h-2 rounded-full"
                           style={{
-                            width: `${(month.totalWorkedHours / Math.max(...stats.monthlyTrends.map(m => m.totalWorkedHours))) * 100}%`
+                              width: `${ratio}%`
                           }}
                         ></div>
                       </div>
@@ -749,8 +900,9 @@ export default function DashboardPage() {
                         {month.totalWorkedHours.toFixed(0)}h
                       </span>
                     </div>
-                  </div>
-                ))
+                    </div>
+                  );
+                })
               ) : (
                 <p className="text-sm text-gray-500 text-center py-4">Aucune donnée disponible</p>
               )}

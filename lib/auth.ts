@@ -42,23 +42,37 @@ export const isAuthenticated = (): boolean => {
 export const isAdmin = (user?: any): boolean => {
   const role = user?.role || getUser()?.role;
   if (!role) return false;
-  return ['ADMIN', 'ADMINISTRATEUR', 'ADMINISTRATOR'].includes(role.toString().toUpperCase());
+  return ['ADMINISTRATEUR', 'ADMIN', 'ADMINISTRATOR'].includes(role.toString().toUpperCase());
 };
 
 export const isManager = (user?: any): boolean => {
   const role = user?.role || getUser()?.role;
   if (!role) return false;
-  return ['MANAGER', 'MANGER'].includes(role.toString().toUpperCase());
+  return ['GESTIONNAIRE', 'MANAGER', 'MANGER'].includes(role.toString().toUpperCase());
 };
 
 export const isBasicUser = (user?: any): boolean => {
   const role = user?.role || getUser()?.role;
   if (!role) return false;
-  return ['USER', 'UTILISATEUR'].includes(role.toString().toUpperCase());
+  return ['UTILISATEUR', 'USER'].includes(role.toString().toUpperCase());
 };
 
 export const hasAnyRole = (roles: string[], user?: any): boolean => {
   const role = (user?.role || getUser()?.role || '').toString().toUpperCase();
-  return roles.map(r => r.toString().toUpperCase()).includes(role);
+  const normalizedRoles = roles
+    .map(r => r.toString().toUpperCase())
+    .flatMap((r) => {
+      if (r === 'ADMINISTRATEUR' || r === 'ADMIN' || r === 'ADMINISTRATOR') {
+        return ['ADMINISTRATEUR', 'ADMIN', 'ADMINISTRATOR'];
+      }
+      if (r === 'GESTIONNAIRE' || r === 'MANAGER' || r === 'MANGER') {
+        return ['GESTIONNAIRE', 'MANAGER', 'MANGER'];
+      }
+      if (r === 'UTILISATEUR' || r === 'USER') {
+        return ['UTILISATEUR', 'USER'];
+      }
+      return [r];
+    });
+  return normalizedRoles.includes(role);
 };
 

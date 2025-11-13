@@ -56,26 +56,44 @@ interface FormData {
   slots: ScheduleSlotForm[];
 }
 
+const normalizeSlotType = (type?: string | null) => (type || '').toString().toUpperCase();
+
+const SLOT_TYPE_MAPPING: Record<string, string> = {
+  FRANCHISE_ENTREE: 'FRANCHISE_ENTREE',
+  ENTRY_GRACE: 'FRANCHISE_ENTREE',
+  PAUSE: 'PAUSE',
+  BREAK: 'PAUSE',
+  HEURE_SUPPLEMENTAIRE: 'HEURE_SUPPLEMENTAIRE',
+  OVERTIME: 'HEURE_SUPPLEMENTAIRE',
+  HEURE_SPECIALE: 'HEURE_SPECIALE',
+  SPECIAL: 'HEURE_SPECIALE',
+};
+
+const mapSlotTypeToFrench = (type?: string | null) =>
+  SLOT_TYPE_MAPPING[normalizeSlotType(type)] || 'PAUSE';
+
 const defaultSlotLabel = (type: string): string => {
-  switch (type) {
-    case 'ENTRY_GRACE':
+  const frenchType = mapSlotTypeToFrench(type);
+  switch (frenchType) {
+    case 'FRANCHISE_ENTREE':
       return 'Franchise d\'entrée';
-    case 'BREAK':
+    case 'PAUSE':
       return 'Pause';
-    case 'OVERTIME':
+    case 'HEURE_SUPPLEMENTAIRE':
       return 'Heures supplémentaires';
-    case 'SPECIAL':
+    case 'HEURE_SPECIALE':
       return 'Heures spéciales';
     default:
-      return type;
+      return frenchType;
   }
 };
 
 const defaultSlotMultiplier = (type: string): string => {
-  switch (type) {
-    case 'OVERTIME':
+  const frenchType = mapSlotTypeToFrench(type);
+  switch (frenchType) {
+    case 'HEURE_SUPPLEMENTAIRE':
       return '1.25';
-    case 'SPECIAL':
+    case 'HEURE_SPECIALE':
       return '1.50';
     default:
       return '1.00';
@@ -149,7 +167,7 @@ export default function SchedulesPage() {
             ? parseFloat(formData.theoreticalAfternoonHours)
             : null,
         slots: formData.slots.map((slot) => ({
-          slotType: slot.slotType,
+          slotType: mapSlotTypeToFrench(slot.slotType),
           startTime: slot.startTime,
           endTime: slot.endTime,
           label: slot.label?.trim() || null,
@@ -193,7 +211,7 @@ export default function SchedulesPage() {
           : '',
       slots: (schedule.slots || []).map((slot) => ({
         id: slot.id,
-        slotType: slot.slotType,
+        slotType: mapSlotTypeToFrench(slot.slotType),
         startTime: slot.startTime,
         endTime: slot.endTime,
         label: slot.label || defaultSlotLabel(slot.slotType),
@@ -223,11 +241,11 @@ export default function SchedulesPage() {
       slots: [
         ...prev.slots,
         {
-          slotType: 'BREAK',
+          slotType: 'PAUSE',
           startTime: prev.endTime || '12:00',
           endTime: prev.endTime || '13:00',
-          label: defaultSlotLabel('BREAK'),
-          multiplier: defaultSlotMultiplier('BREAK'),
+          label: defaultSlotLabel('PAUSE'),
+          multiplier: defaultSlotMultiplier('PAUSE'),
         },
       ],
     }));

@@ -15,6 +15,34 @@ import Modal from '@/components/ui/Modal';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 
+const normalizeStatus = (value?: string | null) => (value || '').toString().toUpperCase();
+
+const TIME_ENTRY_STATUS_MAPPING: Record<string, string> = {
+  EN_ATTENTE: 'EN_ATTENTE',
+  PENDING: 'EN_ATTENTE',
+  TERMINE: 'TERMINE',
+  COMPLETED: 'TERMINE',
+  INCOMPLET: 'INCOMPLET',
+  INCOMPLETE: 'INCOMPLET',
+  ABSENT: 'ABSENT',
+};
+
+const TIME_ENTRY_STATUS_LABELS: Record<string, string> = {
+  EN_ATTENTE: 'En attente',
+  TERMINE: 'Terminé',
+  INCOMPLET: 'Incomplet',
+  ABSENT: 'Absent',
+};
+
+const mapTimeEntryStatusToFrench = (status?: string | null) =>
+  TIME_ENTRY_STATUS_MAPPING[normalizeStatus(status)] || 'EN_ATTENTE';
+
+const getTimeEntryStatusLabel = (status?: string | null) =>
+  TIME_ENTRY_STATUS_LABELS[mapTimeEntryStatusToFrench(status)] || status || '';
+
+const isEntryCompleted = (status?: string | null) => mapTimeEntryStatusToFrench(status) === 'TERMINE';
+const isEntryPending = (status?: string | null) => mapTimeEntryStatusToFrench(status) === 'EN_ATTENTE';
+
 export default function TimeEntriesPage() {
   const router = useRouter();
   const [entries, setEntries] = useState<any[]>([]);
@@ -34,20 +62,14 @@ export default function TimeEntriesPage() {
     clockIn: '',
     clockOut: '',
     totalHours: '',
-    status: 'COMPLETED',
+    status: 'TERMINE',
   });
   const statusOptions = [
-    { value: 'PENDING', label: 'En attente' },
-    { value: 'COMPLETED', label: 'Terminé' },
-    { value: 'INCOMPLETE', label: 'Incomplet' },
+    { value: 'EN_ATTENTE', label: 'En attente' },
+    { value: 'TERMINE', label: 'Terminé' },
+    { value: 'INCOMPLET', label: 'Incomplet' },
     { value: 'ABSENT', label: 'Absent' },
   ];
-  const statusLabels: Record<string, string> = {
-    PENDING: 'En attente',
-    COMPLETED: 'Terminé',
-    INCOMPLETE: 'Incomplet',
-    ABSENT: 'Absent',
-  };
   const canEditEntries = user ? (isAdmin(user) || isManager(user)) : false;
   const canDeleteEntries = user ? isAdmin(user) : false;
   const canValidateEntries = user ? (isAdmin(user) || isManager(user)) : false;
@@ -182,7 +204,7 @@ export default function TimeEntriesPage() {
       clockIn: formatDateTimeLocal(entry.clockIn),
       clockOut: formatDateTimeLocal(entry.clockOut),
       totalHours: entry.totalHours !== null && entry.totalHours !== undefined ? String(entry.totalHours) : '',
-      status: entry.status || 'COMPLETED',
+      status: mapTimeEntryStatusToFrench(entry.status),
     });
     setShowEditModal(true);
   };
@@ -194,7 +216,7 @@ export default function TimeEntriesPage() {
       clockIn: '',
       clockOut: '',
       totalHours: '',
-      status: 'COMPLETED',
+      status: 'TERMINE',
     });
     setEditLoading(false);
   };
@@ -272,7 +294,7 @@ export default function TimeEntriesPage() {
     }
 
     if (editForm.status) {
-      payload.status = editForm.status;
+      payload.status = mapTimeEntryStatusToFrench(editForm.status);
     }
 
     try {
@@ -516,15 +538,15 @@ export default function TimeEntriesPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <Badge
                         variant={
-                          entry.status === 'COMPLETED'
+                          isEntryCompleted(entry.status)
                             ? 'success'
-                            : entry.status === 'PENDING'
+                            : isEntryPending(entry.status)
                             ? 'warning'
                             : 'secondary'
                         }
                         className="shadow-sm"
                       >
-                        {statusLabels[entry.status] || entry.status}
+                        {getTimeEntryStatusLabel(entry.status)}
                       </Badge>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">

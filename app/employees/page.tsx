@@ -17,6 +17,55 @@ import PageHeader from '@/components/ui/PageHeader';
 import { genderTypeOptions, contractTypeOptions, employeeStatusOptions, userRoleOptions } from '@/lib/constants';
 import { toast } from 'react-toastify/unstyled';
 
+const normalizeValue = (value?: string | null) => (value || '').toString().toUpperCase();
+
+const GENDER_MAPPING: Record<string, string> = {
+  HOMME: 'HOMME',
+  MALE: 'HOMME',
+  FEMME: 'FEMME',
+  FEMALE: 'FEMME',
+  INCONNU: 'INCONNU',
+  UNKNOWN: 'INCONNU',
+};
+
+const CONTRACT_MAPPING: Record<string, string> = {
+  TEMPS_PLEIN: 'TEMPS_PLEIN',
+  FULL_TIME: 'TEMPS_PLEIN',
+  TEMPS_PARTIEL: 'TEMPS_PARTIEL',
+  PART_TIME: 'TEMPS_PARTIEL',
+  INTERIM: 'INTERIM',
+  CONTRAT: 'CONTRAT',
+  CONTRACT: 'CONTRAT',
+};
+
+const EMPLOYEE_STATUS_MAPPING: Record<string, string> = {
+  ACTIF: 'ACTIF',
+  ACTIVE: 'ACTIF',
+  INACTIF: 'INACTIF',
+  INACTIVE: 'INACTIF',
+  SUSPENDU: 'SUSPENDU',
+  SUSPENDED: 'SUSPENDU',
+  RESILIE: 'RESILIE',
+  TERMINATED: 'RESILIE',
+};
+
+const ROLE_MAPPING: Record<string, string> = {
+  ADMINISTRATEUR: 'ADMINISTRATEUR',
+  ADMIN: 'ADMINISTRATEUR',
+  ADMINISTRATOR: 'ADMINISTRATEUR',
+  GESTIONNAIRE: 'GESTIONNAIRE',
+  MANAGER: 'GESTIONNAIRE',
+  MANGER: 'GESTIONNAIRE',
+  UTILISATEUR: 'UTILISATEUR',
+  USER: 'UTILISATEUR',
+};
+
+const mapGenderToFrench = (gender?: string | null) => GENDER_MAPPING[normalizeValue(gender)] || 'INCONNU';
+const mapContractToFrench = (contract?: string | null) => CONTRACT_MAPPING[normalizeValue(contract)] || 'TEMPS_PLEIN';
+const mapEmployeeStatusToFrench = (status?: string | null) => EMPLOYEE_STATUS_MAPPING[normalizeValue(status)] || 'ACTIF';
+const mapRoleToFrench = (role?: string | null) => ROLE_MAPPING[normalizeValue(role)] || 'UTILISATEUR';
+const isEmployeeActiveStatus = (status?: string | null) => mapEmployeeStatusToFrench(status) === 'ACTIF';
+
 export default function EmployeesPage() {
   const router = useRouter();
   const [employees, setEmployees] = useState<any[]>([]);
@@ -35,16 +84,16 @@ export default function EmployeesPage() {
     lastName: '',
     email: '',
     phone: '',
-    gender: 'UNKNOWN',
+    gender: 'INCONNU',
     hireDate: '',
-    contractType: 'FULL_TIME',
-    status: 'ACTIVE',
+    contractType: 'TEMPS_PLEIN',
+    status: 'ACTIF',
     organizationalUnitId: null as number | null,
     workCycleId: '',
   });
   const [showAccessModal, setShowAccessModal] = useState(false);
   const [selectedEmployeeForAccess, setSelectedEmployeeForAccess] = useState<any | null>(null);
-  const [accessForm, setAccessForm] = useState({ email: '', password: '', role: 'USER' });
+  const [accessForm, setAccessForm] = useState({ email: '', password: '', role: 'UTILISATEUR' });
   const [accessLoading, setAccessLoading] = useState(false);
   const isCurrentUserAdmin = isAdmin(currentUser);
 
@@ -84,7 +133,7 @@ export default function EmployeesPage() {
     setAccessForm({
       email: employee?.user?.email || employee?.email || '',
       password: '',
-      role: employee?.user?.role || 'USER',
+      role: mapRoleToFrench(employee?.user?.role || 'UTILISATEUR'),
     });
     setShowAccessModal(true);
   };
@@ -92,7 +141,7 @@ export default function EmployeesPage() {
   const closeAccessModal = () => {
     setShowAccessModal(false);
     setSelectedEmployeeForAccess(null);
-    setAccessForm({ email: '', password: '', role: 'USER' });
+    setAccessForm({ email: '', password: '', role: 'UTILISATEUR' });
     setAccessLoading(false);
   };
 
@@ -130,7 +179,7 @@ export default function EmployeesPage() {
         payload.password = trimmedPassword;
       }
       if (isCurrentUserAdmin) {
-        const selectedRole = (accessForm.role || 'USER').toUpperCase();
+        const selectedRole = mapRoleToFrench(accessForm.role);
         const allowedRoles = userRoleOptions.map((option) => option.value);
         if (!allowedRoles.includes(selectedRole)) {
           toast.error('Rôle utilisateur invalide');
@@ -170,10 +219,10 @@ export default function EmployeesPage() {
           lastName: formData.lastName.trim(),
           email: formData.email.trim() || null,
           phone: formData.phone.trim() || null,
-          gender: formData.gender,
+          gender: mapGenderToFrench(formData.gender),
           hireDate: formData.hireDate,
-          contractType: formData.contractType,
-          status: formData.status,
+          contractType: mapContractToFrench(formData.contractType),
+          status: mapEmployeeStatusToFrench(formData.status),
           organizationalUnitId: formData.organizationalUnitId || null,
           workCycleId: formData.workCycleId ? Number(formData.workCycleId) : null,
         };
@@ -190,10 +239,10 @@ export default function EmployeesPage() {
           lastName: formData.lastName.trim(),
           email: formData.email.trim() || null,
           phone: formData.phone.trim() || null,
-          gender: formData.gender,
+          gender: mapGenderToFrench(formData.gender),
           hireDate: formData.hireDate,
-          contractType: formData.contractType,
-          status: formData.status,
+          contractType: mapContractToFrench(formData.contractType),
+          status: mapEmployeeStatusToFrench(formData.status),
           organizationalUnitId: formData.organizationalUnitId || null,
           workCycleId: formData.workCycleId ? Number(formData.workCycleId) : null,
         };
@@ -208,10 +257,10 @@ export default function EmployeesPage() {
         lastName: '',
         email: '',
         phone: '',
-        gender: 'UNKNOWN',
+        gender: 'INCONNU',
         hireDate: '',
-        contractType: 'FULL_TIME',
-        status: 'ACTIVE',
+        contractType: 'TEMPS_PLEIN',
+        status: 'ACTIF',
         organizationalUnitId: null,
         workCycleId: '',
       });
@@ -237,10 +286,10 @@ export default function EmployeesPage() {
       lastName: employee.lastName,
       email: employee.email || '',
       phone: employee.phone || '',
-      gender: employee.gender || 'UNKNOWN',
+      gender: mapGenderToFrench(employee.gender),
       hireDate: employee.hireDate ? new Date(employee.hireDate).toISOString().split('T')[0] : '',
-      contractType: employee.contractType || 'FULL_TIME',
-      status: employee.status || 'ACTIVE',
+      contractType: mapContractToFrench(employee.contractType),
+      status: mapEmployeeStatusToFrench(employee.status),
       organizationalUnitId: orgUnitId,
       workCycleId: employee.workCycle?.id ? String(employee.workCycle.id) : '',
     });
@@ -296,7 +345,7 @@ export default function EmployeesPage() {
         ? `${schedule.label} (${schedule.startTime || '--:--'} – ${schedule.endTime || '--:--'})`
         : 'Horaire non défini';
       const slotSummary = (schedule.slots || [])
-        .filter((slot: any) => ['OVERTIME', 'SPECIAL'].includes(slot.slotType))
+        .filter((slot: any) => ['HEURE_SUPPLEMENTAIRE', 'HEURE_SPECIALE', 'OVERTIME', 'SPECIAL'].includes(normalizeValue(slot.slotType)))
         .map(
           (slot: any) =>
             `${slot.label || slot.slotType} ${slot.multiplier ? `${Number(slot.multiplier).toFixed(2)}x` : ''}`
@@ -326,10 +375,10 @@ export default function EmployeesPage() {
       lastName: '',
       email: '',
       phone: '',
-      gender: 'UNKNOWN',
+      gender: 'INCONNU',
       hireDate: '',
-      contractType: 'FULL_TIME',
-      status: 'ACTIVE',
+      contractType: 'TEMPS_PLEIN',
+      status: 'ACTIF',
       organizationalUnitId: null,
       workCycleId: '',
     });
@@ -537,8 +586,8 @@ export default function EmployeesPage() {
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <Badge variant={emp.status === 'ACTIVE' ? 'success' : 'secondary'} className="shadow-sm">
-                        {emp.status}
+                      <Badge variant={isEmployeeActiveStatus(emp.status) ? 'success' : 'secondary'} className="shadow-sm">
+                        {employeeStatusOptions.find((opt) => opt.value === mapEmployeeStatusToFrench(emp.status))?.label || mapEmployeeStatusToFrench(emp.status)}
                       </Badge>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">

@@ -19,7 +19,7 @@ import {
   Bell,
   Settings,
 } from "lucide-react";
-import { removeAuthToken, getUser, isBasicUser } from "@/lib/auth";
+import { removeAuthToken, getUser, isBasicUser, hasAnyRole } from "@/lib/auth";
 import { notificationsAPI } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import Button from "./ui/Button";
@@ -29,15 +29,16 @@ interface LayoutProps {
 }
 
 const menuItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, allowedRoles: ['ADMIN','MANAGER','USER','UTILISATEUR'] },
-  { href: "/organizational-units", label: "Organigramme", icon: Building2, allowedRoles: ['ADMIN'] },
-  { href: "/employees", label: "Employés", icon: Users, allowedRoles: ['ADMIN','MANAGER'] },
-  { href: "/schedules", label: "Horaires", icon: Calendar, allowedRoles: ['ADMIN'] },
-  { href: "/time-entries", label: "Pointages", icon: Clock, allowedRoles: ['ADMIN','MANAGER','USER','UTILISATEUR'] },
-  { href: "/validation", label: "Validation", icon: RefreshCw, allowedRoles: ['ADMIN','MANAGER'] },
-  { href: "/absences", label: "Absences", icon: Briefcase, allowedRoles: ['ADMIN','MANAGER','USER','UTILISATEUR'] },
-  { href: "/work-cycles", label: "Cycles de Travail", icon: RefreshCw, allowedRoles: ['ADMIN'] },
-  { href: "/notifications", label: "Notifications", icon: Bell, allowedRoles: ['ADMIN','MANAGER'] },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, allowedRoles: ['ADMINISTRATEUR','GESTIONNAIRE','UTILISATEUR'] },
+  { href: "/organizational-units", label: "Organigramme", icon: Building2, allowedRoles: ['ADMINISTRATEUR'] },
+  { href: "/employees", label: "Employés", icon: Users, allowedRoles: ['ADMINISTRATEUR','GESTIONNAIRE'] },
+  { href: "/schedules", label: "Horaires", icon: Calendar, allowedRoles: ['ADMINISTRATEUR'] },
+  { href: "/time-entries", label: "Pointages", icon: Clock, allowedRoles: ['ADMINISTRATEUR','GESTIONNAIRE','UTILISATEUR'] },
+  { href: "/validation", label: "Validation", icon: RefreshCw, allowedRoles: ['ADMINISTRATEUR','GESTIONNAIRE'] },
+  { href: "/absences", label: "Absences", icon: Briefcase, allowedRoles: ['ADMINISTRATEUR','GESTIONNAIRE','UTILISATEUR'] },
+  { href: "/heures", label: "Heures sup & spéciales", icon: Clock, allowedRoles: ['ADMINISTRATEUR'] },
+  { href: "/work-cycles", label: "Cycles de Travail", icon: RefreshCw, allowedRoles: ['ADMINISTRATEUR'] },
+  { href: "/notifications", label: "Notifications", icon: Bell, allowedRoles: ['ADMINISTRATEUR','GESTIONNAIRE'] },
 ];
 
 export default function Layout({ children }: LayoutProps) {
@@ -156,7 +157,7 @@ export default function Layout({ children }: LayoutProps) {
               if (!user) return true;
               // autoriser si le rôle de l'utilisateur est dans allowedRoles
               if (!item.allowedRoles) return true;
-              return item.allowedRoles.includes(String(user.role).toUpperCase());
+              return hasAnyRole(item.allowedRoles, user);
             })
             .map((item) => {
             const Icon = item.icon;
@@ -166,7 +167,7 @@ export default function Layout({ children }: LayoutProps) {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex items-center space-x-3 px-4 py-2 rounded-md transition-all group",
+                  "flex items-center space-x-3 px-4 py-2 transition-all group",
                   isActive
                     ? "bg-cyan-600 text-white font-semibold shadow-sm shadow-blue-500/50"
                     : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"

@@ -335,7 +335,7 @@ export default function NotificationsPage() {
 
                     <Button
                       size="sm"
-                      variant="danger"
+                      variant="destructive"
                       onClick={() => deleteNotification(notification.id)}
                     >
                       <Trash2 className="w-4 h-4" />

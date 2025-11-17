@@ -66,37 +66,51 @@ export default function OrganizationalUnitsPage() {
 
   const loadData = async (includeManagers: boolean = false) => {
     try {
-      const [treeResponse, allUnitsResponse] = await Promise.all([
+      const [treeResponse, allUnitsResponse] = await Promise.allSettled([
         organizationalUnitsAPI.getTree(),
         organizationalUnitsAPI.getAll(),
       ]);
-      setTree(treeResponse.data || []);
-      setAllUnits(allUnitsResponse.data || []);
+
+      const treeData = treeResponse.status === 'fulfilled' 
+        ? (treeResponse.value?.data || treeResponse.value || [])
+        : [];
+      const allUnitsData = allUnitsResponse.status === 'fulfilled'
+        ? (allUnitsResponse.value?.data || allUnitsResponse.value || [])
+        : [];
+
+      setTree(treeData);
+      setAllUnits(allUnitsData);
       // Développer tous les nœuds par défaut
-      const allIds = extractAllIds(treeResponse.data || []);
+      const allIds = extractAllIds(treeData);
       setExpandedNodes(new Set(allIds));
 
       if (includeManagers) {
         try {
           const employeesResponse = await employeesAPI.getAll();
+          const employeesList = employeesResponse?.data || employeesResponse || [];
           const managers =
-            (employeesResponse.data || [])
-              .filter((emp: any) => String(emp.user?.role || '').toUpperCase() === 'MANAGER')
+            employeesList
+              .filter((emp: any) => {
+                const role = String(emp.user?.role || '').toUpperCase();
+                return role === 'MANAGER' || role === 'GESTIONNAIRE' || role === 'MANGER';
+              })
               .map((emp: any) => ({
                 value: emp.user?.id?.toString() || '',
-                label: `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || emp.user?.email,
+                label: `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || emp.user?.email || '',
               }))
-              .filter((option: { value: string }) => option.value);
+              .filter((option: { value: string; label: string }) => option.value && option.label);
           setManagerOptions(managers);
-        } catch (managerError) {
+        } catch (managerError: any) {
           console.error('Erreur chargement managers:', managerError);
+          // En cas d'erreur, laisser les options vides mais continuer
           setManagerOptions([]);
         }
       } else {
         setManagerOptions([]);
       }
     } catch (error) {
-      console.error('Erreur:', error);
+      console.error('Erreur lors du chargement des données:', error);
+      toast.error('Erreur lors du chargement des unités organisationnelles');
     } finally {
       setLoading(false);
     }

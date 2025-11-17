@@ -498,7 +498,7 @@ export default function SchedulesPage() {
                 step="0.25"
                 value={formData.theoreticalDayHours}
                 onChange={(e) => setFormData({ ...formData, theoreticalDayHours: e.target.value })}
-                placeholder="Ex: 8"
+                placeholder="8"
               />
               <Input
                 label="Théorique matin (h)"
@@ -508,7 +508,7 @@ export default function SchedulesPage() {
                 onChange={(e) =>
                   setFormData({ ...formData, theoreticalMorningHours: e.target.value })
                 }
-                placeholder="Ex: 4"
+                placeholder="4"
               />
               <Input
                 label="Théorique après-midi (h)"
@@ -518,7 +518,7 @@ export default function SchedulesPage() {
                 onChange={(e) =>
                   setFormData({ ...formData, theoreticalAfternoonHours: e.target.value })
                 }
-                placeholder="Ex: 4"
+                placeholder="4"
               />
             </div>
 

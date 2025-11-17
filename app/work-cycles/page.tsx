@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { RefreshCw, Plus, Edit2, Trash2, Clock, Calendar } from 'lucide-react';
+import { RefreshCw, Plus, Edit2, Trash2, Clock, Calendar, Edit, Users } from 'lucide-react';
 import Layout from '@/components/Layout';
 import { isAuthenticated } from '@/lib/auth';
 import api, { workCyclesAPI, schedulesAPI } from '@/lib/api';
@@ -187,7 +187,7 @@ export default function WorkCyclesPage() {
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-cyan-600 border-t-transparent"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-4 border-cyan-600 border-t-transparent"></div>
         </div>
       </Layout>
     );
@@ -249,7 +249,7 @@ export default function WorkCyclesPage() {
                 <p className="text-3xl font-bold text-slate-900">{totalEmployeesCount}</p>
               </div>
               <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                <Clock className="w-6 h-6 text-green-600" />
+                <Users className="w-6 h-6 text-green-600" />
               </div>
             </div>
           </Card>
@@ -298,9 +298,6 @@ export default function WorkCyclesPage() {
                     >
                       <td className="p-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-cyan-100 rounded-lg flex items-center justify-center">
-                            <RefreshCw className="w-5 h-5 text-cyan-600" />
-                          </div>
                           <div>
                             <p className="font-semibold text-slate-900">{cycle.label}</p>
                             {cycle.schedule && (
@@ -346,13 +343,13 @@ export default function WorkCyclesPage() {
                         <div className="flex gap-2 justify-end">
                           <button
                             onClick={() => handleEdit(cycle)}
-                            className="p-2 text-cyan-600 hover:bg-cyan-50 rounded-lg transition-colors"
+                            className="p-2 text-cyan-600 bg-cyan-100 hover:bg-cyan-50 transition-colors"
                           >
-                            <Edit2 className="w-4 h-4" />
+                            <Edit className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleDelete(cycle.id)}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            className="p-2 text-red-600 bg-red-100 hover:bg-red-50 transition-colors"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -401,7 +398,7 @@ export default function WorkCyclesPage() {
                         value={formData.label}
                         onChange={(e) => setFormData({ ...formData, label: e.target.value })}
                         required
-                        placeholder="Ex: Cycle journée standard"
+                        placeholder="Cycle journée standard"
                       />
                     </div>
                     <div>
@@ -409,7 +406,7 @@ export default function WorkCyclesPage() {
                         label="Abrégé"
                         value={formData.abbreviation}
                         onChange={(e) => setFormData({ ...formData, abbreviation: e.target.value })}
-                        placeholder="Ex: STD-J"
+                        placeholder="STD-J"
                       />
                     </div>
                   </div>

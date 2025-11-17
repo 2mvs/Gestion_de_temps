@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Search, ChevronDown, X, User } from 'lucide-react';
+import { Search, ChevronDown, X } from 'lucide-react';
 
 interface Option {
   value: string;
@@ -184,11 +184,6 @@ export default function SelectSearch({
                     ${option.value === value ? 'bg-cyan-50 border-l-4 border-l-cyan-600' : ''}
                   `}
                 >
-                  <div className="w-10 h-10 bg-cyan-600 rounded-full flex items-center justify-center shrink-0">
-                    <span className="text-white font-bold text-sm">
-                      {option.label.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                    </span>
-                  </div>
                   <div className="flex flex-col min-w-0 flex-1">
                     <span className={`font-medium truncate ${
                       option.value === value ? 'text-cyan-900' : 'text-gray-900'

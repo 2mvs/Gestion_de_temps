@@ -67,23 +67,32 @@ export default function ManagerDashboard() {
         setPresentToday(attendanceCounts.reduce((sum, value) => sum + value, 0));
 
         if (user?.employee?.id) {
-          const [entriesRes, absencesRes] = await Promise.all([
-            timeEntriesAPI.getByEmployee(user.employee.id),
-            absencesAPI.getByEmployee(user.employee.id),
-          ]);
+          try {
+            const [entriesRes, absencesRes] = await Promise.allSettled([
+              timeEntriesAPI.getByEmployee(user.employee.id),
+              absencesAPI.getByEmployee(user.employee.id),
+            ]);
 
-          const entries = entriesRes?.data ?? entriesRes ?? [];
-          const absences = absencesRes?.data ?? absencesRes ?? [];
+            const entries = entriesRes.status === 'fulfilled' 
+              ? (entriesRes.value?.data ?? entriesRes.value ?? [])
+              : [];
+            const absences = absencesRes.status === 'fulfilled'
+              ? (absencesRes.value?.data ?? absencesRes.value ?? [])
+              : [];
 
-          const totalHours = entries
-            .filter((entry: any) => entry.status === "TERMINE")
-            .reduce((sum: number, entry: any) => sum + (entry.totalHours || 0), 0);
+            const totalHours = entries
+              .filter((entry: any) => entry.status === "TERMINE")
+              .reduce((sum: number, entry: any) => sum + (entry.totalHours || 0), 0);
 
-          setManagerStats({
-            totalHours: Math.round(totalHours * 100) / 100,
-            entriesCount: entries.length,
-            totalAbsences: absences.length,
-          });
+            setManagerStats({
+              totalHours: Math.round(totalHours * 100) / 100,
+              entriesCount: entries.length,
+              totalAbsences: absences.length,
+            });
+          } catch (statsError) {
+            console.error("Erreur lors du chargement des statistiques personnelles:", statsError);
+            // Continuer même en cas d'erreur pour les stats personnelles
+          }
         }
       } catch (error) {
         console.error("Erreur lors du chargement du dashboard manager:", error);
@@ -213,6 +222,7 @@ export default function ManagerDashboard() {
           </div>
         )}
 
+        <Card>
         <div>
           <h2 className="text-lg font-semibold text-gray-900 mb-3">Actions rapides</h2>
           <div className="flex gap-3 flex-wrap">
@@ -227,14 +237,6 @@ export default function ManagerDashboard() {
             </Link>
           </div>
         </div>
-
-        <Card>
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Remarques</h3>
-            <p className="text-sm text-gray-600">
-              Cette vue montre des informations synthétiques. Pour plus de détails, utilisez les liens ci-dessus.
-            </p>
-          </div>
         </Card>
       </div>
     </Layout>

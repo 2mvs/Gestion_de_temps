@@ -65,6 +65,14 @@ const translateModel = (model?: string) => {
   return MODEL_TRANSLATIONS[model] || model;
 };
 
+const getUserDisplayName = (currentUser?: any): string => {
+  if (!currentUser) return 'Utilisateur';
+  const firstName = currentUser.employee?.firstName || currentUser.firstName || '';
+  const lastName = currentUser.employee?.lastName || currentUser.lastName || '';
+  const fullName = `${firstName} ${lastName}`.trim();
+  return fullName || currentUser.email || 'Utilisateur';
+};
+
 const normalizeStatus = (value?: string | null) => (value || '').toString().toUpperCase();
 
 const isTimeEntryCompleted = (status: any) => ['TERMINE', 'COMPLETED'].includes(normalizeStatus(status));
@@ -243,13 +251,42 @@ export default function DashboardPage() {
     setUserError(null);
     try {
       const employeeId = currentUser.employee.id;
-      const [entriesResponse, absencesResponse] = await Promise.all([
+      const [entriesResult, absencesResult] = await Promise.allSettled([
         timeEntriesAPI.getByEmployee(employeeId),
         absencesAPI.getByEmployee(employeeId),
       ]);
 
-      const entriesData = entriesResponse?.data ?? entriesResponse ?? [];
-      const absencesData = absencesResponse?.data ?? absencesResponse ?? [];
+      if (
+        entriesResult.status === 'rejected' &&
+        absencesResult.status === 'rejected'
+      ) {
+        const error: any = entriesResult.reason || absencesResult.reason;
+        if (error?.response?.status === 403) {
+          setUserError("Accès refusé : contactez votre administrateur pour accéder aux pointages.");
+        } else {
+          setUserError("Impossible de charger vos statistiques personnelles.");
+        }
+        setRecentEntries([]);
+        setRecentAbsences([]);
+        setUserStats({
+          totalHours: 0,
+          totalAbsenceDays: 0,
+          totalPresenceDays: 0,
+          totalPointages: 0,
+          pendingAbsences: 0,
+          approvedAbsences: 0,
+        });
+        return;
+      }
+
+      const entriesData =
+        entriesResult.status === 'fulfilled'
+          ? entriesResult.value?.data ?? entriesResult.value ?? []
+          : [];
+      const absencesData =
+        absencesResult.status === 'fulfilled'
+          ? absencesResult.value?.data ?? absencesResult.value ?? []
+          : [];
 
       const completedEntries = entriesData.filter((entry: any) => isTimeEntryCompleted(entry.status));
       const totalHours = completedEntries.reduce(
@@ -573,7 +610,9 @@ export default function DashboardPage() {
       <Layout>
         <div className="p-6 lg:p-8">
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Mon tableau de bord</h1>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+              Bienvenue {getUserDisplayName(user)}
+            </h1>
             <p className="text-gray-600">Résumé de vos heures de travail et absences personnelles</p>
           </div>
 
@@ -987,7 +1026,7 @@ export default function DashboardPage() {
           size="lg"
         >
           {selectedAuditLog && (
-            <div className="space-y-4">
+            <div className="space-y-4 p-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                   <p className="text-xs uppercase text-slate-500 font-semibold mb-1">Action</p>
@@ -1035,7 +1074,7 @@ export default function DashboardPage() {
                 </div>
               )}
               <div className="flex justify-end">
-                <Button type="button" onClick={() => setSelectedAuditLog(null)}>
+                <Button type="button" className='bg-gray-100 hover:bg-gray-200 text-gray-900' onClick={() => setSelectedAuditLog(null)}>
                   Fermer
                 </Button>
               </div>

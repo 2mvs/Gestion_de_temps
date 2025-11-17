@@ -189,7 +189,7 @@ export default function ValidationPage() {
       <Layout>
         <div className="p-8">
           <div className="flex items-center justify-center h-64">
-            <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+            <div className="w-8 h-8 border-4 border-cyan-600 border-t-transparent rounded-full animate-spin" />
           </div>
         </div>
       </Layout>

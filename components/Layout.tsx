@@ -75,15 +75,32 @@ export default function Layout({ children }: LayoutProps) {
     const loadUnreadCount = async () => {
       try {
         const response = await notificationsAPI.getUnreadCount();
-        setUnreadCount(response.data.count || 0);
-      } catch (error) {
-        console.error("Erreur chargement compteur notifications:", error);
+        const count =
+          response?.data?.count ??
+          response?.count ??
+          (typeof response === 'number' ? response : 0);
+        setUnreadCount(count || 0);
+      } catch (error: any) {
+        // Ignorer silencieusement les erreurs d'authentification, d'autorisation et réseau
+        if (
+          error?.response?.status === 401 ||
+          error?.response?.status === 403 ||
+          error?.code === 'ERR_NETWORK' ||
+          error?.message === 'Network Error'
+        ) {
+          setUnreadCount(0);
+          return;
+        }
+        // Logger uniquement les autres erreurs
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Erreur chargement compteur notifications:', error);
+        }
+        setUnreadCount(0);
       }
     };
 
-    if (user) {
+    if (user && !isBasicUser(user)) {
       loadUnreadCount();
-      // Recharger toutes les 30 secondes
       const interval = setInterval(loadUnreadCount, 30000);
       return () => clearInterval(interval);
     }

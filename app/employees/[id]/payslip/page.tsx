@@ -21,6 +21,10 @@ interface PayslipData {
     organizationalUnit: any;
     contractType: string;
     hireDate: string;
+    workCycle?: {
+      label?: string | null;
+      abbreviation?: string | null;
+    } | null;
   };
   period: {
     startDate: string;
@@ -74,7 +78,7 @@ export default function PayslipPage() {
       setPayslipData(response.data);
     } catch (error: any) {
       console.error('Erreur:', error);
-      toast.error(error.response?.data?.message || 'Erreur lors du chargement de la fiche de paie');
+      toast.error(error.response?.data?.message || 'Erreur lors du chargement de la fiche de pointage');
     } finally {
       setLoading(false);
     }
@@ -86,7 +90,6 @@ export default function PayslipPage() {
   const handlePrint = () => {
     if (!printRef.current) return;
     
-    // Masquer les éléments non nécessaires à l'impression
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
@@ -95,7 +98,7 @@ export default function PayslipPage() {
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Fiche de Paie</title>
+          <title>Fiche de Pointage</title>
           <style>
             @media print {
               @page {
@@ -105,50 +108,101 @@ export default function PayslipPage() {
               body { margin: 0; }
             }
             body {
-              font-family: Arial, sans-serif;
-              font-size: 12px;
-              line-height: 1.5;
-              color: #000;
+              font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+              color: #0f172a;
+              font-size: 0.95rem;
+              line-height: 1.55;
+              margin: 0;
+              padding: 2rem;
+            }
+            .payslip-printable {
+              font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+              color: #0f172a;
+              font-size: 0.95rem;
+              line-height: 1.55;
             }
             .payslip-header {
-              border-bottom: 3px solid #000;
               padding-bottom: 15px;
               margin-bottom: 20px;
             }
             .payslip-header h1 {
-              font-size: 24px;
+              font-size: 1.75rem;
+              font-weight: 700;
+              margin-bottom: 0.25rem;
+              color: #0f172a;
               margin: 0;
             }
             .payslip-header .company-info {
-              margin-top: 10px;
-              font-size: 10px;
+              margin-top: 5px;
+              font-size: 0.85rem;
+              color: #475569;
+            }
+            .payslip-header .company-info p {
+              margin: 0.25rem 0;
             }
             .payslip-section {
-              margin-bottom: 20px;
+              margin-bottom: 1.75rem;
             }
             .payslip-section h2 {
-              font-size: 14px;
-              font-weight: bold;
-              border-bottom: 1px solid #000;
-              padding-bottom: 5px;
-              margin-bottom: 10px;
+              font-size: 1.05rem;
+              font-weight: 600;
+              margin-bottom: 0.5rem;
+              color: #0f172a;
+            }
+            .payslip-employee-summary {
+              margin-bottom: 1.5rem;
+            }
+            .employee-summary-header {
+              display: flex;
+              flex-direction: column;
+              gap: 0.25rem;
+            }
+            .payslip-employee-summary h2 {
+              margin: 0;
+              font-size: 1.2rem;
+            }
+            .employee-matricule {
+              font-size: 0.9rem;
+              font-weight: 600;
+              text-transform: uppercase;
+              color: #0f172a;
+              margin: 0;
+            }
+            .employee-meta-row {
+              display: flex;
+              gap: 1rem;
+              flex-wrap: wrap;
+              font-size: 0.9rem;
+              color: #475569;
+              margin-top: 0.35rem;
             }
             table {
               width: 100%;
               border-collapse: collapse;
-              margin-bottom: 15px;
+              margin-bottom: 1.25rem;
+              background-color: #ffffff;
             }
             table th, table td {
-              border: 1px solid #000;
-              padding: 8px;
+              border: 1px solid #cbd5f5;
+              padding: 0.65rem;
               text-align: left;
             }
             table th {
-              background-color: #f0f0f0;
-              font-weight: bold;
+              background-color: #e2e8f0;
+              color: #0f172a;
+              font-weight: 600;
+              font-size: 0.85rem;
+              text-transform: uppercase;
+              letter-spacing: 0.02em;
+            }
+            table td {
+              font-size: 0.9rem;
+            }
+            .total-row td {
+              font-weight: 700;
+              background-color: #f8fafc;
             }
             .summary-box {
-              border: 2px solid #000;
               padding: 15px;
               margin-top: 20px;
             }
@@ -156,9 +210,45 @@ export default function PayslipPage() {
               margin-top: 0;
               font-size: 16px;
             }
-            .total-row {
-              font-weight: bold;
-              font-size: 14px;
+            .summary-grid {
+              display: grid;
+              grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+              gap: 0.75rem;
+            }
+            .summary-grid div {
+              border: 1px solid #cbd5f5;
+              padding: 0.75rem;
+              background: #f8fafc;
+            }
+            .summary-grid p {
+              margin: 0;
+              font-size: 0.8rem;
+              color: #475569;
+            }
+            .summary-grid strong {
+              display: block;
+              font-size: 1rem;
+              color: #0f172a;
+            }
+            .signature-section {
+              margin-top: 3rem;
+              text-align: center;
+              display: grid;
+              grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+              gap: 2rem;
+            }
+            .signature-section p {
+              margin: 0.25rem 0;
+            }
+            .signature-name {
+              font-size: 0.9rem;
+              color: #475569;
+            }
+            .payslip-footer {
+              margin-top: 2.5rem;
+              text-align: center;
+              font-size: 0.85rem;
+              color: #475569;
             }
             .no-print {
               display: none;
@@ -267,7 +357,7 @@ export default function PayslipPage() {
         <div ref={printRef} className="bg-white p-8 shadow-lg max-w-4xl mx-auto payslip-printable">
           {/* Header */}
           <div className="payslip-header">
-            <h1>FICHE DE PAIE</h1>
+            <h1>FICHE DE POINTAGE</h1>
             <div className="company-info">
               <p>Entreprise: OGOOUE TECHNOLOGIE</p>
               <p>Période: {formatDate(payslipData.period.startDate)} - {formatDate(payslipData.period.endDate)}</p>
@@ -275,40 +365,22 @@ export default function PayslipPage() {
           </div>
 
           {/* Employee Info */}
-          <div className="payslip-section">
-            <h2>INFORMATIONS EMPLOYÉ</h2>
-            <table>
-              <tbody>
-                <tr>
-                  <td><strong>Matricule:</strong></td>
-                  <td>{payslipData.employee.employeeNumber}</td>
-                </tr>
-                <tr>
-                  <td><strong>Nom:</strong></td>
-                  <td>{payslipData.employee.firstName} {payslipData.employee.lastName}</td>
-                </tr>
-                <tr>
-                  <td><strong>Email:</strong></td>
-                  <td>{payslipData.employee.email || '-'}</td>
-                </tr>
-                <tr>
-                  <td><strong>Téléphone:</strong></td>
-                  <td>{payslipData.employee.phone || '-'}</td>
-                </tr>
-                <tr>
-                  <td><strong>Unité Organisationnelle:</strong></td>
-                  <td>{payslipData.employee.organizationalUnit?.name || '-'}</td>
-                </tr>
-                <tr>
-                  <td><strong>Type de Contrat:</strong></td>
-                  <td>{payslipData.employee.contractType}</td>
-                </tr>
-                <tr>
-                  <td><strong>Date d'embauche:</strong></td>
-                  <td>{formatDate(payslipData.employee.hireDate)}</td>
-                </tr>
-              </tbody>
-            </table>
+          <div className="payslip-section payslip-employee-summary">
+            <div className="employee-summary-header">
+            <h2>{payslipData.employee.firstName} {payslipData.employee.lastName}</h2>
+              <p className="employee-matricule">Matricule : {payslipData.employee.employeeNumber}</p>
+            </div>
+            <div className="employee-meta-row">
+              <span>
+                Contact&nbsp;: {payslipData.employee.email || 'Email indisponible'}
+                &nbsp;-&nbsp; {payslipData.employee.phone || 'Téléphone indisponible'}
+                </span>
+            </div>
+            <div className="employee-meta-row">
+              <span>
+                Service&nbsp;: {payslipData.employee.organizationalUnit?.name || 'Non définie'}
+              </span>
+            </div>
           </div>
 
           {/* Time Entries */}
@@ -450,36 +522,49 @@ export default function PayslipPage() {
           {/* Summary */}
           <div className="summary-box">
             <h3>RÉSUMÉ DE LA PÉRIODE</h3>
-            <table>
-              <tbody>
-                <tr>
-                  <td><strong>Jours travaillés:</strong></td>
-                  <td>{payslipData.summary.workDays} jours</td>
-                </tr>
-                <tr>
-                  <td><strong>Total heures normales:</strong></td>
-                  <td>{payslipData.summary.totalHours.toFixed(2)} h</td>
-                </tr>
-                <tr>
-                  <td><strong>Total heures supplémentaires:</strong></td>
-                  <td>{payslipData.summary.totalOvertimeHours.toFixed(2)} h</td>
-                </tr>
-                <tr>
-                  <td><strong>Total heures spéciales:</strong></td>
-                  <td>{payslipData.summary.totalSpecialHours.toFixed(2)} h</td>
-                </tr>
-                <tr>
-                  <td><strong>Total jours d'absence:</strong></td>
-                  <td>{payslipData.summary.totalAbsenceDays} jours</td>
-                </tr>
-              </tbody>
-            </table>
+            <div className="summary-grid">
+              <div>
+                <p>Jours travaillés</p>
+                <strong>{payslipData.summary.workDays}</strong>
+              </div>
+              <div>
+                <p>Heures normales</p>
+                <strong>{payslipData.summary.totalHours.toFixed(2)} h</strong>
+              </div>
+              <div>
+                <p>Heures supplémentaires</p>
+                <strong>{payslipData.summary.totalOvertimeHours.toFixed(2)} h</strong>
+              </div>
+              <div>
+                <p>Heures spéciales</p>
+                <strong>{payslipData.summary.totalSpecialHours.toFixed(2)} h</strong>
+              </div>
+              <div>
+                <p>Jours d'absence</p>
+                <strong>{payslipData.summary.totalAbsenceDays}</strong>
+              </div>
+            </div>
           </div>
 
-          {/* Footer */}
-          <div className="mt-8 pt-4 border-t border-slate-300 text-center text-xs text-slate-500">
-            <p>Fiche générée le {new Date().toLocaleDateString('fr-FR')} à {new Date().toLocaleTimeString('fr-FR')}</p>
+        <div className="signature-section">
+          <div>
+            <p><strong>Signature de l'employé</strong></p>
+            <p className="signature-name">{payslipData.employee.firstName} {payslipData.employee.lastName}</p>
           </div>
+          <div>
+            <p><strong>Signature du chef de service</strong></p>
+            <p className="signature-name">Chef de service</p>
+          </div>
+          <div>
+            <p><strong>Signature RH</strong></p>
+            <p className="signature-name">Service RH</p>
+          </div>
+        </div>
+
+        {/* Footer */}
+        {/* <div className="payslip-footer">
+          <p>Fiche générée le {new Date().toLocaleDateString('fr-FR')} à {new Date().toLocaleTimeString('fr-FR')}</p>
+        </div> */}
         </div>
       </div>
 
@@ -489,6 +574,85 @@ export default function PayslipPage() {
           color: #0f172a;
           font-size: 0.95rem;
           line-height: 1.55;
+        }
+
+        .payslip-employee-summary {
+          margin-bottom: 1.5rem;
+        }
+
+        .employee-summary-header {
+          display: flex;
+          flex-direction: column;
+          gap: 0.25rem;
+        }
+
+        .payslip-employee-summary h2 {
+          margin: 0;
+          font-size: 1.2rem;
+        }
+
+        .employee-matricule {
+          font-size: 0.9rem;
+          color: #475569;
+          margin: 0;
+        }
+
+        .employee-meta-row {
+          display: flex;
+          gap: 1rem;
+          flex-wrap: wrap;
+          font-size: 0.9rem;
+          color: #475569;
+          margin-top: 0.35rem;
+        }
+
+        .summary-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+          gap: 0.75rem;
+        }
+
+        .summary-grid div {
+          border: 1px solid #cbd5f5;
+          padding: 0.75rem;
+          // border-radius: 0.5rem;
+          background: #f8fafc;
+        }
+
+        .summary-grid p {
+          margin: 0;
+          font-size: 0.8rem;
+          color: #475569;
+        }
+
+        .summary-grid strong {
+          display: block;
+          font-size: 1rem;
+          color: #0f172a;
+        }
+
+        .signature-section {
+          margin-top: 3rem;
+          text-align: center;
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+          gap: 2rem;
+        }
+
+        .signature-section p {
+          margin: 0.25rem 0;
+        }
+
+        .signature-name {
+          font-size: 0.9rem;
+          color: #475569;
+        }
+
+        .payslip-footer {
+          margin-top: 2.5rem;
+          text-align: center;
+          font-size: 0.85rem;
+          color: #475569;
         }
 
         .payslip-printable h1 {

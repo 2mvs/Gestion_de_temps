@@ -80,7 +80,11 @@ export default function NotificationsPage() {
   const loadUnreadCount = async () => {
     try {
       const response = await notificationsAPI.getUnreadCount();
-      setUnreadCount(response.data.count || 0);
+      const count =
+        response?.data?.count ??
+        response?.count ??
+        (typeof response === 'number' ? response : 0);
+      setUnreadCount(count || 0);
     } catch (error) {
       console.error('Erreur chargement compteur:', error);
     }

@@ -29,16 +29,66 @@ interface LayoutProps {
 }
 
 const menuItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, allowedRoles: ['ADMINISTRATEUR','GESTIONNAIRE','UTILISATEUR'] },
-  { href: "/organizational-units", label: "Organigramme", icon: Building2, allowedRoles: ['ADMINISTRATEUR'] },
-  { href: "/employees", label: "Employés", icon: Users, allowedRoles: ['ADMINISTRATEUR','GESTIONNAIRE'] },
-  { href: "/schedules", label: "Horaires", icon: Calendar, allowedRoles: ['ADMINISTRATEUR'] },
-  { href: "/time-entries", label: "Pointages", icon: Clock, allowedRoles: ['ADMINISTRATEUR','GESTIONNAIRE','UTILISATEUR'] },
-  { href: "/validation", label: "Validation", icon: RefreshCw, allowedRoles: ['ADMINISTRATEUR','GESTIONNAIRE'] },
-  { href: "/absences", label: "Absences", icon: Briefcase, allowedRoles: ['ADMINISTRATEUR','GESTIONNAIRE','UTILISATEUR'] },
-  { href: "/heures", label: "Heures sup & spéciales", icon: Clock, allowedRoles: ['ADMINISTRATEUR'] },
-  { href: "/work-cycles", label: "Cycles de Travail", icon: RefreshCw, allowedRoles: ['ADMINISTRATEUR'] },
-  { href: "/notifications", label: "Notifications", icon: Bell, allowedRoles: ['ADMINISTRATEUR','GESTIONNAIRE'] },
+  {
+    href: "/dashboard",
+    label: "Dashboard",
+    icon: LayoutDashboard,
+    allowedRoles: ["ADMINISTRATEUR", "GESTIONNAIRE", "UTILISATEUR"],
+  },
+  {
+    href: "/organizational-units",
+    label: "Organigramme",
+    icon: Building2,
+    allowedRoles: ["ADMINISTRATEUR"],
+  },
+  {
+    href: "/employees",
+    label: "Employés",
+    icon: Users,
+    allowedRoles: ["ADMINISTRATEUR", "GESTIONNAIRE"],
+  },
+  {
+    href: "/schedules",
+    label: "Horaires",
+    icon: Calendar,
+    allowedRoles: ["ADMINISTRATEUR"],
+  },
+  {
+    href: "/time-entries",
+    label: "Pointages",
+    icon: Clock,
+    allowedRoles: ["ADMINISTRATEUR", "GESTIONNAIRE", "UTILISATEUR"],
+  },
+  {
+    href: "/validation",
+    label: "Validation",
+    icon: RefreshCw,
+    allowedRoles: ["ADMINISTRATEUR", "GESTIONNAIRE"],
+  },
+  {
+    href: "/absences",
+    label: "Absences",
+    icon: Briefcase,
+    allowedRoles: ["ADMINISTRATEUR", "GESTIONNAIRE", "UTILISATEUR"],
+  },
+  {
+    href: "/heures",
+    label: "Heures sup & spéciales",
+    icon: Clock,
+    allowedRoles: ["ADMINISTRATEUR"],
+  },
+  {
+    href: "/work-cycles",
+    label: "Cycles de Travail",
+    icon: RefreshCw,
+    allowedRoles: ["ADMINISTRATEUR"],
+  },
+  {
+    href: "/notifications",
+    label: "Notifications",
+    icon: Bell,
+    allowedRoles: ["ADMINISTRATEUR", "GESTIONNAIRE"],
+  },
 ];
 
 export default function Layout({ children }: LayoutProps) {
@@ -61,13 +111,13 @@ export default function Layout({ children }: LayoutProps) {
     if (!user) return;
     if (!isBasicUser(user)) return;
 
-    const allowedPaths = ['/dashboard', '/time-entries', '/absences'];
+    const allowedPaths = ["/dashboard", "/time-entries", "/absences"];
     const isAllowed = allowedPaths.some(
       (path) => pathname === path || pathname.startsWith(`${path}/`)
     );
 
     if (!isAllowed) {
-      router.replace('/dashboard');
+      router.replace("/dashboard");
     }
   }, [user, pathname, router]);
 
@@ -78,22 +128,22 @@ export default function Layout({ children }: LayoutProps) {
         const count =
           response?.data?.count ??
           response?.count ??
-          (typeof response === 'number' ? response : 0);
+          (typeof response === "number" ? response : 0);
         setUnreadCount(count || 0);
       } catch (error: any) {
         // Ignorer silencieusement les erreurs d'authentification, d'autorisation et réseau
         if (
           error?.response?.status === 401 ||
           error?.response?.status === 403 ||
-          error?.code === 'ERR_NETWORK' ||
-          error?.message === 'Network Error'
+          error?.code === "ERR_NETWORK" ||
+          error?.message === "Network Error"
         ) {
           setUnreadCount(0);
           return;
         }
         // Logger uniquement les autres erreurs
-        if (process.env.NODE_ENV === 'development') {
-          console.error('Erreur chargement compteur notifications:', error);
+        if (process.env.NODE_ENV === "development") {
+          console.error("Erreur chargement compteur notifications:", error);
         }
         setUnreadCount(0);
       }
@@ -141,8 +191,10 @@ export default function Layout({ children }: LayoutProps) {
         <div className="p-3 border-b border-gray-200 flex items-center justify-between">
           {sidebarOpen && (
             <div className="flex items-center space-x-3 w-full">
-              <div className="flex flex-col w-full bg-white items-center justify-center shadow-md">
-                <h1 className="text-xl font-bold text-gray-700"><span className="text-cyan-600 mr-2">OTECH</span>GTA</h1>
+              <div className="flex flex-col w-full bg-white items-center justify-center">
+                <h1 className="text-xl font-bold text-gray-700">
+                  <span className="text-cyan-600 mr-2">OTECH</span>GTP
+                </h1>
                 <p className="text-sm text-gray-500">Gestion de temps</p>
               </div>
             </div>
@@ -169,7 +221,7 @@ export default function Layout({ children }: LayoutProps) {
         {/* Navigation */}
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           {menuItems
-            .filter(item => {
+            .filter((item) => {
               // si pas d'user encore (chargement), laisser tout (ou cacher?) -> on laisse afficher mais non cliquable
               if (!user) return true;
               // autoriser si le rôle de l'utilisateur est dans allowedRoles
@@ -177,31 +229,31 @@ export default function Layout({ children }: LayoutProps) {
               return hasAnyRole(item.allowedRoles, user);
             })
             .map((item) => {
-            const Icon = item.icon;
-            const isActive = pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "flex items-center space-x-3 px-4 py-2 transition-all group",
-                  isActive
-                    ? "bg-cyan-600 text-white font-semibold shadow-sm shadow-blue-500/50"
-                    : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
-                )}
-              >
-                <Icon
+              const Icon = item.icon;
+              const isActive = pathname === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
                   className={cn(
-                    "w-5 h-5 shrink-0",
+                    "flex items-center space-x-3 px-4 py-2 transition-all group",
                     isActive
-                      ? "text-white"
-                      : "group-hover:scale-110 transition-transform"
+                      ? "bg-cyan-600 text-white font-semibold shadow-sm shadow-blue-500/50"
+                      : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
                   )}
-                />
-                {sidebarOpen && <span className="text-sm">{item.label}</span>}
-              </Link>
-            );
-          })}
+                >
+                  <Icon
+                    className={cn(
+                      "w-5 h-5 shrink-0",
+                      isActive
+                        ? "text-white"
+                        : "group-hover:scale-110 transition-transform"
+                    )}
+                  />
+                  {sidebarOpen && <span className="text-sm">{item.label}</span>}
+                </Link>
+              );
+            })}
         </nav>
 
         {/* User Section - Simplifié sans bouton déconnexion */}
@@ -239,7 +291,7 @@ export default function Layout({ children }: LayoutProps) {
             <div className="hidden lg:block">
               <h2 className="text-lg font-semibold text-gray-800">
                 {menuItems.find((item) => item.href === pathname)?.label ||
-                  "Kelio"}
+                  "Rapport de pointage"}
               </h2>
             </div>
 
@@ -248,7 +300,7 @@ export default function Layout({ children }: LayoutProps) {
               <div className="w-8 h-8 bg-linear-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-sm">K</span>
               </div>
-              <span className="font-bold text-gray-900">Kelio</span>
+              <span className="font-bold text-gray-900">Rapport de pointage</span>
             </div> */}
 
             {/* Right Section - Actions */}
@@ -266,9 +318,9 @@ export default function Layout({ children }: LayoutProps) {
               </Link>
 
               {/* Settings */}
-              <button className="hidden lg:flex p-2 rounded-lg hover:bg-gray-100 transition-colors">
+              {/* <button className="hidden lg:flex p-2 rounded-lg hover:bg-gray-100 transition-colors">
                 <Settings className="w-5 h-5 text-gray-600" />
-              </button>
+              </button> */}
 
               {/* User Info & Logout */}
               <div className="flex items-center space-x-3 pl-3 border-l border-gray-200">
@@ -278,7 +330,10 @@ export default function Layout({ children }: LayoutProps) {
                       <p className="text-sm font-medium text-gray-900">
                         {user.email}
                       </p>
-                      <p className="text-xs text-gray-500">{user.role}</p>
+                      <p className="text-xs text-gray-500">
+                        {user.role.charAt(0).toUpperCase() +
+                          user.role.slice(1).toLowerCase()}
+                      </p>{" "}
                     </>
                   ) : (
                     <>
@@ -290,15 +345,13 @@ export default function Layout({ children }: LayoutProps) {
                   )}
                 </div>
 
-                <Button
+                <button
                   onClick={handleLogout}
-                  variant="outline"
-                  size="sm"
-                  className="bg-red-50 border-red-200 text-red-600 hover:bg-red-100 hover:border-red-300"
+                  className="text-red-600 text-sm font-medium hover:text-red-700 transition-colors cursor-pointer"
                 >
-                  <LogOut className="w-4 h-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Déconnexion</span>
-                </Button>
+                  {/* <LogOut className="w-4 h-4 sm:mr-2" /> */}
+                  <span className="hidden sm:inline">Se déconnecter</span>
+                </button>
               </div>
             </div>
           </div>

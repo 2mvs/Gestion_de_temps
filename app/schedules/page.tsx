@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Clock, Plus, Edit2, Trash2, Calendar, Settings2 } from 'lucide-react';
+import { Clock, Plus, Edit2, Trash2, Calendar, Settings2, Edit3, Edit } from 'lucide-react';
 import Layout from '@/components/Layout';
 import { isAuthenticated } from '@/lib/auth';
 import { schedulesAPI } from '@/lib/api';
@@ -428,13 +428,13 @@ export default function SchedulesPage() {
                         <div className="flex gap-2 justify-end">
                           <button
                             onClick={() => handleEdit(schedule)}
-                            className="p-2 text-cyan-600 hover:bg-cyan-50 rounded-lg transition-colors"
+                            className="p-2 text-cyan-600 bg-cyan-100 hover:bg-cyan-50 transition-colors"
                           >
-                            <Edit2 className="w-4 h-4" />
+                            <Edit className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleDelete(schedule.id)}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            className="p-2 text-red-600 bg-red-100 hover:bg-red-50 transition-colors"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -604,10 +604,9 @@ export default function SchedulesPage() {
                           type="button"
                           variant="destructive"
                           onClick={() => removeSlot(index)}
-                          className="w-full md:w-auto"
+                          className="w-full md:w-auto bg-red-100 text-red-600 hover:bg-red-50 transition-colors"
                         >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Retirer
+                          <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
                     </div>

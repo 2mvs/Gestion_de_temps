@@ -488,7 +488,7 @@ export default function PayslipPage() {
           {/* Absences */}
           {payslipData.absences.length > 0 && (
             <div className="payslip-section">
-              <h2>ABSENCES ({payslipData.absences.length} enregistrement(s))</h2>
+              <h2>ABSENCES ({payslipData.absences.length})</h2>
               <table>
                 <thead>
                   <tr>
@@ -521,7 +521,7 @@ export default function PayslipPage() {
 
           {/* Summary */}
           <div className="summary-box">
-            <h3>RÉSUMÉ DE LA PÉRIODE</h3>
+            <h2>RÉSUMÉ DE LA PÉRIODE</h2>
             <div className="summary-grid">
               <div>
                 <p>Jours travaillés</p>

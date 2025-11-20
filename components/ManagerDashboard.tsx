@@ -232,9 +232,9 @@ export default function ManagerDashboard() {
             <Link href="/validation">
               <Button>Valider des demandes</Button>
             </Link>
-            <Link href="/absences/new">
+            {/* <Link href="/absences/new">
               <Button variant="outline">Ajouter une absence</Button>
-            </Link>
+            </Link> */}
           </div>
         </div>
         </Card>
